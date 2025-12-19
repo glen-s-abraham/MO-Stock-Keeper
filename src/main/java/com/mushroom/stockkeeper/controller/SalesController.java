@@ -154,14 +154,33 @@ public class SalesController {
     }
 
     @PostMapping("/{id}/remove")
-    public String removeUnit(@PathVariable Long id, @RequestParam Long unitId) {
-        salesService.removeUnit(unitId);
+    public String removeUnit(@PathVariable Long id, @RequestParam Long unitId,
+            org.springframework.web.servlet.mvc.support.RedirectAttributes redirectAttributes) {
+        try {
+            salesService.removeUnit(unitId);
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Error: " + e.getMessage());
+        }
         return "redirect:/sales/" + id;
     }
 
     @PostMapping("/{id}/finalize")
-    public String finalizeOrder(@PathVariable Long id) throws Exception {
-        salesService.finalizeOrder(id);
-        return "redirect:/sales";
+    public String finalizeOrder(@PathVariable Long id,
+            @RequestParam(defaultValue = "false") boolean isPaid,
+            @RequestParam(required = false) String paymentMethod) throws Exception {
+        salesService.finalizeOrder(id, isPaid, paymentMethod);
+        return "redirect:/sales/" + id;
+    }
+
+    @PostMapping("/{id}/cancel")
+    public String cancelOrder(@PathVariable Long id,
+            org.springframework.web.servlet.mvc.support.RedirectAttributes redirectAttributes) {
+        try {
+            salesService.cancelOrder(id);
+            redirectAttributes.addFlashAttribute("success", "Order has been cancelled and stock reverted.");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Failed to cancel order: " + e.getMessage());
+        }
+        return "redirect:/sales/" + id;
     }
 }

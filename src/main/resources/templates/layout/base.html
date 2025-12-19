@@ -39,6 +39,7 @@
                     <li class="nav-item"><a class="nav-link" href="#" th:href="@{/sales}">Sales</a></li>
                     <li class="nav-item"><a class="nav-link" href="#" th:href="@{/returns}">Returns</a></li>
                     <li class="nav-item"><a class="nav-link" href="#" th:href="@{/collections}">Collections</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" th:href="@{/admin/settings}">Settings</a></li>
                 </ul>
                 <div class="d-flex">
                    <span class="text-white me-3" th:if="${#authentication.principal != 'anonymousUser'}">
@@ -76,7 +77,7 @@
             <i class="bi bi-cart3 nav-icon"></i>
             <small class="d-block" style="font-size: 0.7rem;">Sale</small>
         </a>
-        <a th:href="@{/settings}" class="text-secondary text-center text-decoration-none">
+        <a th:href="@{/admin/settings}" class="text-secondary text-center text-decoration-none">
             <i class="bi bi-gear nav-icon"></i>
             <small class="d-block" style="font-size: 0.7rem;">More</small>
         </a>
