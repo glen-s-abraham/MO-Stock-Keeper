@@ -95,4 +95,29 @@ public class HarvestBatchController {
         model.addAttribute("qrCodes", qrCodes);
         return "batches/print";
     }
+
+    @PostMapping("/{id}/delete")
+    public String delete(@PathVariable Long id,
+            org.springframework.web.servlet.mvc.support.RedirectAttributes redirectAttributes) {
+        try {
+            batchService.deleteBatch(id);
+            redirectAttributes.addFlashAttribute("success", "Batch deleted successfully.");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Error: " + e.getMessage());
+            return "redirect:/batches/" + id;
+        }
+        return "redirect:/batches";
+    }
+
+    @PostMapping("/{id}/update")
+    public String update(@PathVariable Long id, @RequestParam LocalDate batchDate,
+            org.springframework.web.servlet.mvc.support.RedirectAttributes redirectAttributes) {
+        try {
+            batchService.updateBatch(id, batchDate);
+            redirectAttributes.addFlashAttribute("success", "Batch updated successfully.");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Error: " + e.getMessage());
+        }
+        return "redirect:/batches/" + id;
+    }
 }

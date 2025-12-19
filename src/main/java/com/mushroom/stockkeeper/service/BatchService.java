@@ -68,4 +68,40 @@ public class BatchService {
 
         return savedBatch;
     }
+
+    @Transactional
+    public void deleteBatch(Long batchId) throws Exception {
+        HarvestBatch batch = batchRepository.findById(batchId).orElseThrow();
+
+        // Check for usage
+        long usedUnits = unitRepository.findAll().stream()
+                .filter(u -> u.getBatch().getId().equals(batchId))
+                .filter(u -> u.getStatus() != InventoryStatus.AVAILABLE)
+                .count();
+
+        if (usedUnits > 0) {
+            throw new Exception("Cannot delete batch. " + usedUnits + " units are Sold or allocated.");
+        }
+
+        // Delete all units
+        unitRepository.findAll().stream()
+                .filter(u -> u.getBatch().getId().equals(batchId))
+                .forEach(unitRepository::delete);
+
+        // Delete batch
+        batchRepository.delete(batch);
+    }
+
+    @Transactional
+    public void updateBatch(Long batchId, LocalDate newDate) {
+        HarvestBatch batch = batchRepository.findById(batchId).orElseThrow();
+        batch.setBatchDate(newDate);
+
+        // Recalculate expiry
+        if (batch.getExpiryDays() != null) {
+            batch.setExpiryDate(newDate.plusDays(batch.getExpiryDays()));
+        }
+
+        batchRepository.save(batch);
+    }
 }

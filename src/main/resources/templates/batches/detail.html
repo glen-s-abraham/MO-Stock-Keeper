@@ -13,7 +13,71 @@
                     <small class="text-muted">Production details and inventory tracking</small>
                 </div>
             </div>
-            <a th:href="@{/batches/{id}/print(id=${batch.id})}" class="btn btn-warning shadow-sm text-dark fw-bold"><i class="bi bi-printer me-2"></i>Print Labels</a>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-outline-warning shadow-sm fw-bold" data-bs-toggle="modal" data-bs-target="#editBatchModal">
+                    <i class="bi bi-pencil me-1"></i> Edit
+                </button>
+                <button class="btn btn-outline-danger shadow-sm fw-bold" data-bs-toggle="modal" data-bs-target="#deleteBatchModal">
+                    <i class="bi bi-trash me-1"></i> Delete
+                </button>
+                <a th:href="@{/batches/{id}/print(id=${batch.id})}" class="btn btn-warning shadow-sm text-dark fw-bold"><i class="bi bi-printer me-2"></i>Print Labels</a>
+            </div>
+        </div>
+
+        <!-- Success/Error Messages -->
+        <div th:if="${success}" class="alert alert-success" th:text="${success}"></div>
+        <div th:if="${error}" class="alert alert-danger" th:text="${error}"></div>
+        
+        <!-- Edit Modal -->
+        <div class="modal fade" id="editBatchModal" tabindex="-1">
+            <div class="modal-dialog">
+                <form th:action="@{/batches/{id}/update(id=${batch.id})}" method="post">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Edit Batch</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label">Harvest Date</label>
+                                <input type="date" name="batchDate" class="form-control" th:value="${batch.batchDate}" required>
+                                <div class="form-text">Expiry date will be recalculated automatically.</div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Delete Modal -->
+        <div class="modal fade" id="deleteBatchModal" tabindex="-1">
+            <div class="modal-dialog">
+                <form th:action="@{/batches/{id}/delete(id=${batch.id})}" method="post">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title text-danger">Delete Batch?</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Are you sure you want to delete <strong><span th:text="${batch.batchCode}"></span></strong>?</p>
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                This action cannot be undone. All available inventory units in this batch will be deleted.
+                                <br><br>
+                                <strong>Deletion will fail if any items have been sold.</strong>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-danger">Delete Batch</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
         </div>
         
         <div class="row g-4 mb-5">
@@ -21,7 +85,7 @@
                 <div class="card h-100">
                     <div class="card-body">
                         <label class="text-muted small text-uppercase">Product</label>
-                        <h5 class="text-white mb-0" th:text="${batch.product.name}">Product</h5>
+                        <h5 class="text-dark mb-0" th:text="${batch.product.name}">Product</h5>
                     </div>
                 </div>
             </div>
@@ -29,7 +93,7 @@
                 <div class="card h-100">
                     <div class="card-body">
                         <label class="text-muted small text-uppercase">Harvest Date</label>
-                        <h5 class="text-white mb-0" th:text="${batch.batchDate}">Date</h5>
+                        <h5 class="text-dark mb-0" th:text="${batch.batchDate}">Date</h5>
                     </div>
                 </div>
             </div>
