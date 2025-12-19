@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layout/base}">
+<head>
+    <title>Record Payment</title>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="row justify-content-center">
+            <div class="col-12 col-md-8 col-lg-6">
+                 <div class="d-flex align-items-center mb-4">
+                    <a th:href="@{/collections}" class="btn btn-outline-secondary btn-sm me-3"><i class="bi bi-arrow-left fs-5"></i></a>
+                    <h3 class="mb-0">Record Payment</h3>
+                </div>
+                
+                <div class="card shadow-sm">
+                    <div class="card-body p-4">
+                        <form th:action="@{/collections/payment}" method="post">
+                            <h6 class="text-uppercase text-muted fw-bold small mb-4">Payment Details</h6>
+                            
+                            <div class="mb-3">
+                                <label class="form-label text-muted small">Customer</label>
+                                <select class="form-select form-select-lg" name="customerId" required>
+                                    <option value="">Select Customer...</option>
+                                    <option th:each="c : ${customers}" 
+                                            th:value="${c.id}" 
+                                            th:text="${c.name}"
+                                            th:selected="${param.customerId != null and param.customerId[0] == c.id.toString()}">
+                                    </option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label text-muted small">Payment Amount</label>
+                                <div class="input-group input-group-lg">
+                                    <span class="input-group-text bg-light text-muted">$</span>
+                                    <input type="number" step="0.01" class="form-control ps-2" name="amount" placeholder="0.00" required>
+                                </div>
+                            </div>
+                            
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small">Payment Method</label>
+                                    <select class="form-select" name="method" required>
+                                        <option th:each="m : ${methods}" th:value="${m}" th:text="${m}"></option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small">Reference No.</label>
+                                    <input type="text" class="form-control" name="reference" placeholder="Check # / TxID">
+                                </div>
+                            </div>
+                            
+                            <div class="d-grid gap-2 mt-5">
+                                <button type="submit" class="btn btn-success btn-lg shadow-sm">
+                                    <i class="bi bi-check-lg me-2"></i>Record & Allocate
+                                </button>
+                                <a th:href="@{/collections}" class="btn btn-link text-muted text-decoration-none">Cancel</a>
+                            </div>
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

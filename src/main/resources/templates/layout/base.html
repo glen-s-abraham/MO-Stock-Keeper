@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title layout:title-pattern="$CONTENT_TITLE - MO Stock Keeper">MO Stock Keeper</title>
+    
+    <!-- Google Fonts: Outfit (Premium, Modern) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap 5.3 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link th:href="@{/css/styles.css}" rel="stylesheet">
+    
+    <meta name="_csrf" th:content="${_csrf.token}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+</head>
+<body class="pb-5 mb-5"> <!-- Padding for bottom nav -->
+
+    <!-- Top Navbar (Desktop/Admin mainly) -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-success sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-box-seam-fill me-2"></i>MO Stock
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarMain">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="#" th:href="@{/dashboard}">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" th:href="@{/products}">Products</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" th:href="@{/batches}">Batches</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" th:href="@{/sales}">Sales</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" th:href="@{/returns}">Returns</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" th:href="@{/collections}">Collections</a></li>
+                </ul>
+                <div class="d-flex">
+                   <span class="text-white me-3" th:if="${#authentication.principal != 'anonymousUser'}">
+                       <i class="bi bi-person-circle"></i> <span th:text="${#authentication.name}">User</span>
+                   </span>
+                   <form th:action="@{/logout}" method="post" th:if="${#authentication.principal != 'anonymousUser'}">
+                       <button class="btn btn-sm btn-outline-light" type="submit">Logout</button>
+                   </form>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container-fluid mt-3" layout:fragment="content">
+        <!-- Content goes here -->
+    </div>
+
+    <!-- Bottom Navigation (Mobile Only - Generic Placeholder) -->
+    <div class="mobile-nav-bottom d-lg-none d-flex justify-content-around py-2">
+        <a th:href="@{/dashboard}" class="text-secondary text-center text-decoration-none">
+            <i class="bi bi-speedometer2 nav-icon"></i>
+            <small class="d-block" style="font-size: 0.7rem;">Home</small>
+        </a>
+        <a th:href="@{/batches/create}" class="text-secondary text-center text-decoration-none">
+            <i class="bi bi-box-seam nav-icon"></i>
+            <small class="d-block" style="font-size: 0.7rem;">Pack</small>
+        </a>
+        <a th:href="@{/scan}" class="text-center text-decoration-none">
+            <div class="scan-btn shadow">
+                <i class="bi bi-qr-code-scan fs-4"></i>
+            </div>
+        </a>
+        <a th:href="@{/sales}" class="text-secondary text-center text-decoration-none">
+            <i class="bi bi-cart3 nav-icon"></i>
+            <small class="d-block" style="font-size: 0.7rem;">Sale</small>
+        </a>
+        <a th:href="@{/settings}" class="text-secondary text-center text-decoration-none">
+            <i class="bi bi-gear nav-icon"></i>
+            <small class="d-block" style="font-size: 0.7rem;">More</small>
+        </a>
+    </div>
+
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script> <!-- Optional but often needed -->
+    <!-- Html5-QRCode (CDN) -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <!-- Custom JS -->
+    <script th:src="@{/js/scripts.js}"></script>
+    
+    <th:block layout:fragment="scripts"></th:block>
+</body>
+</html>

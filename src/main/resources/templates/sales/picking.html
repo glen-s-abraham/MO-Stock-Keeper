@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layout/base}">
+<head>
+    <title>Picking - MO Stock</title>
+</head>
+<body>
+    <div layout:fragment="content">
+
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                 <h5 class="mb-0" th:text="${order.orderNumber}">SO-123</h5>
+                 <small th:text="${order.customer.name}" class="text-muted">Customer</small>
+            </div>
+            <span class="badge rounded-pill px-3 py-2" 
+                  th:classappend="${order.status.name() == 'INVOICED'} ? 'bg-success text-white' : 'bg-warning text-dark'" 
+                  th:text="${order.status}">DRAFT</span>
+        </div>
+
+        <!-- Manual Entry Section -->
+        <div class="card mb-4 shadow-sm">
+            <div class="card-body">
+                <label class="form-label fw-bold">Manual Item Entry</label>
+                <div class="input-group">
+                    <input class="form-control" list="inventoryList" id="manualSearchInput" placeholder="Search by UUID or Product Name..." onchange="addFromSearch()">
+                    <datalist id="inventoryList">
+                        <option th:each="u : ${availableUnits}" th:value="${u.uuid}" th:text="|${u.batch.product.name} - ${u.uuid}|"></option>
+                    </datalist>
+                    <button class="btn btn-primary" onclick="addFromSearch()">
+                        <i class="bi bi-plus-lg"></i> Add
+                    </button>
+                    <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#manualInputModal">
+                        <i class="bi bi-list-ul"></i> Batch
+                    </button>
+                </div>
+                <div id="manualFeedback" class="form-text text-success fw-bold" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- Scanner Section (Only if DRAFT) -->
+        <div th:if="${order.status.name() == 'DRAFT'}" class="mb-4" id="cameraSection" style="display:none;">
+            <div class="card mb-3 shadow-sm overflow-hidden border">
+                <div class="card-body p-0 text-center position-relative">
+                    <div id="reader" style="width: 100%; min-height: 250px; background-color: #000;"></div>
+                    <div id="scanResult" class="position-absolute bottom-0 w-100 p-2 text-success fw-bold bg-white bg-opacity-75" style="display:none;"></div>
+                    <div id="scanError" class="position-absolute top-0 w-100 p-2 text-danger fw-bold bg-white bg-opacity-75" style="display:none;"></div>
+                </div>
+            </div>
+            
+            <button class="btn btn-primary w-100 shadow-sm py-3" id="startScanBtn" onclick="startScanner()">
+                 <i class="bi bi-camera me-2"></i> Start Camera
+            </button>
+        </div>
+
+        <!-- Allocated Items List -->
+        <h6 class="mt-4 text-muted small text-uppercase fw-bold mb-3">Allocated Items (<span th:text="${order.allocatedUnits.size()}">0</span>)</h6>
+        <div class="card shadow-sm mb-4">
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    <div th:each="u : ${order.allocatedUnits}" class="list-group-item d-flex justify-content-between align-items-center py-3">
+                        <div>
+                            <strong th:text="${u.batch.product.name}" class="text-dark">Product</strong><br>
+                            <small th:text="${u.uuid}" class="text-muted font-monospace">UUID</small>
+                        </div>
+                        <form th:if="${order.status.name() == 'DRAFT'}" th:action="@{/sales/{id}/remove(id=${order.id})}" method="post" style="margin:0;">
+                            <input type="hidden" name="unitId" th:value="${u.id}"/>
+                            <button type="submit" class="btn btn-sm btn-outline-danger border-0"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </div>
+                    <div th:if="${order.allocatedUnits.isEmpty()}" class="text-center text-muted py-5">
+                        <i class="bi bi-basket fs-1 d-block mb-3 opacity-25"></i>
+                        No items scanned yet. Use the camera or manual entry.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pricing & Summary -->
+        <div th:if="${(order.status.name() == 'DRAFT' or order.status.name() == 'INVOICED') and !order.allocatedUnits.isEmpty()}" class="mb-4">
+             <div class="card shadow-sm">
+                 <div class="card-header bg-light fw-bold">Order Summary & Pricing</div>
+                 <div class="card-body p-0">
+                    <table class="table table-borderless mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Product</th>
+                                <th class="text-center">Qty</th>
+                                <th class="text-end" style="width: 150px;">Unit Price (₹)</th>
+                                <th class="text-end pe-3">Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Iterate pre-calculated summary rows -->
+                            <tr th:each="row : ${summaryRows}" class="align-middle border-bottom">
+                                <td class="ps-3 fw-bold" th:text="${row.productName}">Product Name</td>
+                                <td class="text-center" th:text="${row.quantity}">5</td>
+                                <td class="text-end">
+                                    <span th:if="${order.status.name() == 'INVOICED'}" th:text="${row.unitPrice}">10.00</span>
+                                    <input th:if="${order.status.name() == 'DRAFT'}" 
+                                           type="number" class="form-control form-control-sm text-end product-price-input" 
+                                           step="0.01" placeholder="0.00"
+                                           th:data-product-id="${row.productId}"
+                                           th:data-qty="${row.quantity}"
+                                           th:value="${row.unitPrice}"
+                                           onchange="updateProductPrice(this)">
+                                </td>
+                                <td class="text-end pe-3 fw-bold font-monospace product-subtotal" th:text="${row.subtotal}">0.00</td>
+                            </tr>
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <td colspan="3" class="text-end fw-bold">Total Invoice Value:</td>
+                                <td class="text-end pe-3 fw-bold fs-5 text-success" id="grandTotal" th:text="'₹' + ${grandTotal}">₹0.00</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                 </div>
+             </div>
+        </div>
+
+        <!-- Finalize Button -->
+        <div th:if="${order.status.name() == 'DRAFT' and !order.allocatedUnits.isEmpty()}" class="d-grid pb-5">
+            <form th:action="@{/sales/{id}/finalize(id=${order.id})}" method="post" onsubmit="return validateFinalize()">
+                <button type="submit" class="btn btn-success w-100 btn-lg shadow-lg">
+                    <i class="bi bi-check-circle-fill me-2"></i>Finalize & Invoice
+                </button>
+            </form>
+        </div>
+        
+        <!-- Manual / Batch Input Modal -->
+        <div class="modal fade" id="manualInputModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Manual / Batch Allocation</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Scan or Enter UUIDs (One per line)</label>
+                            <textarea class="form-control font-monospace" id="manualInput" rows="5" placeholder="U:UUID1&#10;U:UUID2&#10;..."></textarea>
+                            <div class="form-text">Enter UUIDs directly.</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" onclick="handleManualInput()">Allocate Items</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <th:block layout:fragment="scripts">
+        <script th:inline="javascript">
+            /*<![CDATA[*/
+            const orderId = /*[[${order.id}]]*/ 0;
+            const csrfToken = /*[[${_csrf.token}]]*/ '';
+            const csrfHeader = /*[[${_csrf.headerName}]]*/ '';
+            /*]]>*/
+
+            let html5QrcodeScanner = null;
+
+            function startScanner() {
+                if (html5QrcodeScanner) return; // Already running
+
+                html5QrcodeScanner = new Html5Qrcode("reader");
+                const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+                
+                html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess)
+                .catch(err => {
+                    console.error(err);
+                    document.getElementById('scanError').innerText = "Camera access failed.";
+                });
+                
+                document.getElementById('startScanBtn').classList.add('d-none');
+            }
+            
+                // Check for camera availability
+                Html5Qrcode.getCameras().then(devices => {
+                    if (devices && devices.length) {
+                        document.getElementById('cameraSection').style.display = 'block';
+                    }
+                }).catch(err => {
+                   console.log("No camera permissions or devices", err);
+                });
+            
+            function onScanSuccess(decodedText, decodedResult) {
+                console.log(`Code matched = ${decodedText}`, decodedResult);
+                
+                // Visual feedback immediate
+                const resDiv = document.getElementById('scanResult');
+                resDiv.style.display = 'block';
+                resDiv.innerText = "Scanned: " + decodedText; // Show what we found immediately
+                
+                allocateItem(decodedText, false).then(() => {
+                     resDiv.innerText = "Added: " + decodedText;
+                     setTimeout(() => resDiv.style.display = 'none', 2000);
+                     // Optional: refresh list part via partial HTML fetch if needed, 
+                     // but for now relying on final refresh or implicit trust
+                }).catch(e => {
+                     resDiv.innerText = "Error: " + e.message; // Error feedback in the same box
+                });
+            }
+
+            async function addFromSearch() {
+                const input = document.getElementById('manualSearchInput');
+                const val = input.value;
+                if (!val) return;
+                
+                try {
+                    await allocateItem(val, true); // true = Reload to show in list
+                } catch(e) {
+                     alert("Failed to add: " + e.message);
+                }
+            }
+
+            async function handleManualInput() {
+                const text = document.getElementById('manualInput').value;
+                if (!text) return;
+
+                const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l);
+                
+                if (lines.length === 0) return;
+
+                // Close modal first
+                var myModalEl = document.getElementById('manualInputModal');
+                var modal = bootstrap.Modal.getInstance(myModalEl);
+                modal.hide();
+
+                // Process all
+                for (const line of lines) {
+                    try {
+                        await allocateItem(line, false); // Don't reload yet
+                    } catch (e) {
+                        console.error("Failed to allocate " + line, e);
+                        // Continue? or alert?
+                    }
+                }
+                
+                // Done
+                location.reload();
+            }
+
+            function recalcTotals() {
+                const inputs = document.querySelectorAll('.product-price-input');
+                if (inputs.length === 0) return; // Read-only mode or empty
+
+                let grandTotal = 0;
+                inputs.forEach(input => {
+                    const price = parseFloat(input.value) || 0;
+                    const qty = parseInt(input.getAttribute('data-qty')) || 0;
+                    const subtotal = price * qty;
+                    
+                    const row = input.closest('tr');
+                    row.querySelector('.product-subtotal').innerText = subtotal.toFixed(2);
+                    grandTotal += subtotal;
+                });
+                document.getElementById('grandTotal').innerText = "₹" + grandTotal.toFixed(2);
+            }
+
+            async function updateProductPrice(input) {
+                const price = input.value;
+                const productId = input.getAttribute('data-product-id');
+                
+                // Optimistic UI update
+                recalcTotals();
+
+                if (!price) return;
+                
+                try {
+                    const res = await fetch(`/sales/${orderId}/update-price`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            [csrfHeader]: csrfToken
+                        },
+                        body: JSON.stringify({ productId: productId, price: parseFloat(price) })
+                    });
+                    
+                    if (!res.ok) {
+                         alert("Failed to save price");
+                         input.classList.add('is-invalid');
+                    } else {
+                         input.classList.remove('is-invalid');
+                         input.classList.add('is-valid');
+                         setTimeout(() => input.classList.remove('is-valid'), 1000);
+                    }
+                } catch(e) {
+                     console.error(e);
+                }
+            }
+            
+            function validateFinalize() {
+                let valid = true;
+                document.querySelectorAll('.product-price-input').forEach(input => {
+                    const price = parseFloat(input.value) || 0;
+                    if (price <= 0) valid = false;
+                });
+                
+                if (!valid) {
+                    alert("Please set a valid price for all products.");
+                    return false;
+                }
+                return confirm("Finalize and Invoice this order?");
+            }
+            
+            // Init totals
+            recalcTotals();
+
+            function allocateItem(qrContent, shouldReload = true) {
+                 return fetch(`/sales/${orderId}/allocate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        [csrfHeader]: csrfToken
+                    },
+                    body: qrContent
+                })
+                .then(response => {
+                    if (response.ok) {
+                         if (shouldReload) location.reload();
+                    } else {
+                        return response.text().then(text => { 
+                            throw new Error(text);
+                        });
+                    }
+                });
+            }
+        </script>
+    </th:block>
+</body>
+</html>

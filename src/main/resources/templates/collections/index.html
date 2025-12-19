@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layout/base}">
+<head>
+    <title>Collections Report</title>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="mb-1">Collections Dashboard</h2>
+                <p class="text-muted mb-0">Monitor outstanding balances and record payments.</p>
+            </div>
+            <a th:href="@{/collections/payment}" class="btn btn-primary shadow-sm"><i class="bi bi-cash-coin me-2"></i>Record Payment</a>
+        </div>
+        
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light py-3">
+                <h5 class="mb-0 text-dark"><i class="bi bi-graph-up text-success me-2"></i>Customer Aging Report</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light text-uppercase">
+                            <tr>
+                                <th class="ps-4">Customer</th>
+                                <th class="text-end">Outstanding Balance</th>
+                                <th class="text-end pe-4">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="c : ${customers}">
+                                <td class="ps-4">
+                                    <div class="fw-medium text-dark" th:text="${c.name}">Customer Name</div>
+                                    <small class="text-muted">ID: <span th:text="${c.id}">0</span></small>
+                                </td>
+                                <td class="text-end" th:with="bal=${balances.get(c.id)}">
+                                    <span th:text="${bal != null ? #numbers.formatCurrency(bal) : '$0.00'}" 
+                                          th:class="${bal != null and bal > 0} ? 'fs-5 fw-bold text-danger' : 'fs-5 fw-bold text-success'">$0.00</span>
+                                </td>
+                                <td class="text-end pe-4">
+                                    <a th:href="@{/collections/payment(customerId=${c.id})}" class="btn btn-sm btn-outline-success border-0"><i class="bi bi-credit-card me-2"></i>Pay</a>
+                                </td>
+                            </tr>
+                             <!-- Empty State -->
+                            <tr th:if="${#lists.isEmpty(customers)}">
+                                <td colspan="3" class="text-center py-5 text-muted">
+                                    <i class="bi bi-wallet2 fs-1 d-block mb-3 opacity-25"></i>
+                                    No customers found or all paid up!
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

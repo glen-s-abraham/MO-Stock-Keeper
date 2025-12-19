@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layout/base}">
+<head>
+    <title>User Form</title>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="row justify-content-center">
+            <div class="col-12 col-md-8 col-lg-6">
+                <div class="d-flex align-items-center mb-4">
+                    <a th:href="@{/admin/users}" class="btn btn-outline-secondary btn-sm me-3"><i class="bi bi-arrow-left fs-5"></i></a>
+                    <h3 class="mb-0" th:text="${user.id == null ? 'New User' : 'Edit User'}">User Form</h3>
+                </div>
+                
+                <div class="card shadow-sm">
+                    <div class="card-body p-4">
+                        <form th:action="@{/admin/users/save}" th:object="${user}" method="post">
+                            <input type="hidden" th:field="*{id}" />
+                            
+                            <h6 class="text-uppercase text-muted fw-bold small mb-4">Account Details</h6>
+                            
+                            <div class="mb-3">
+                                <label class="form-label text-muted small">Username</label>
+                                <input type="text" class="form-control form-control-lg" th:field="*{username}" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label text-muted small">Password</label>
+                                <input type="password" class="form-control form-control-lg" th:field="*{password}" th:placeholder="${user.id != null ? 'Leave blank to keep unchanged' : 'Enter password'}">
+                                <div class="form-text" th:if="${user.id != null}">Only enter a value if you want to change the password.</div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="form-label text-muted small">Role</label>
+                                <select class="form-select" th:field="*{role}">
+                                    <option th:each="r : ${roles}" th:value="${r}" th:text="${r}"></option>
+                                </select>
+                            </div>
+                            
+                            <div class="d-grid gap-2 mt-5">
+                                <button type="submit" class="btn btn-success btn-lg shadow-sm">
+                                    <i class="bi bi-check-lg me-2"></i>Save User
+                                </button>
+                                <a th:href="@{/admin/users}" class="btn btn-link text-muted text-decoration-none">Cancel</a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

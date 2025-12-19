@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layout/base}">
+<head>
+    <title>Batch Details</title>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex align-items-center">
+                <a th:href="@{/batches}" class="btn btn-outline-secondary btn-sm me-3 border-0"><i class="bi bi-arrow-left fs-5"></i></a>
+                <div>
+                    <h3 class="mb-0 text-white">Batch: <span th:text="${batch.batchCode}" class="text-gradient"></span></h3>
+                    <small class="text-muted">Production details and inventory tracking</small>
+                </div>
+            </div>
+            <a th:href="@{/batches/{id}/print(id=${batch.id})}" class="btn btn-warning shadow-sm text-dark fw-bold"><i class="bi bi-printer me-2"></i>Print Labels</a>
+        </div>
+        
+        <div class="row g-4 mb-5">
+            <div class="col-md-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <label class="text-muted small text-uppercase">Product</label>
+                        <h5 class="text-white mb-0" th:text="${batch.product.name}">Product</h5>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <label class="text-muted small text-uppercase">Harvest Date</label>
+                        <h5 class="text-white mb-0" th:text="${batch.batchDate}">Date</h5>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <label class="text-muted small text-uppercase">Total Units</label>
+                        <h5 class="text-primary mb-0" th:text="${batch.totalUnits}">0</h5>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <label class="text-muted small text-uppercase">Expiry Date</label>
+                        <h5 class="text-warning mb-0" th:text="${batch.expiryDate}">Date</h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card border-0 shadow-lg">
+            <div class="card-header border-0 bg-transparent py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 text-white">Inventory Units</h5>
+                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary" th:text="${#lists.size(units)} + ' items'"></span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                     <table class="table table-hover align-middle mb-0">
+                         <thead class="sticky-top bg-dark">
+                             <tr>
+                                 <th class="ps-4">UUID</th>
+                                 <th class="text-end pe-4">Status</th>
+                             </tr>
+                         </thead>
+                         <tbody>
+                             <tr th:each="u : ${units}">
+                                 <td class="ps-4 font-monospace text-muted" th:text="${u.uuid}"></td>
+                                 <td class="text-end pe-4">
+                                    <span class="badge bg-success bg-opacity-10 text-success border border-success" th:if="${u.status.name() == 'AVAILABLE'}">Available</span>
+                                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary" th:if="${u.status.name() == 'SOLD'}">Sold</span>
+                                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger" th:if="${u.status.name() == 'RETURNED'}">Returned</span>
+                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary" th:if="${u.status.name() == 'SPOILED'}">Spoiled</span>
+                                 </td>
+                             </tr>
+                         </tbody>
+                     </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

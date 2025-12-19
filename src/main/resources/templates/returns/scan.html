@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layout/base}">
+<head>
+    <title>Returns</title>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="mb-0">Process Returns</h3>
+            <span class="badge bg-secondary" id="itemCountBadge">0 Items</span>
+        </div>
+        
+        <div th:if="${success}" class="alert alert-success d-flex align-items-center" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i>
+            <div th:text="${success}"></div>
+        </div>
+        <div th:if="${error}" class="alert alert-danger d-flex align-items-center" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <div th:text="${error}"></div>
+        </div>
+
+        <!-- Manual Entry -->
+        <div class="card mb-4 shadow-sm">
+            <div class="card-body">
+                <label class="form-label fw-bold">Manual Entry</label>
+                <div class="input-group mb-2">
+                    <input type="text" class="form-control font-monospace" id="manualUuid" list="soldList" placeholder="Search UUID or Product..." onkeypress="handleEnter(event)">
+                    <datalist id="soldList">
+                        <option th:each="u : ${soldUnits}" th:value="${u.uuid}" th:text="|${u.batch.product.name} - ${u.uuid}|"></option>
+                    </datalist>
+                    <button class="btn btn-primary" onclick="addManual()">
+                        <i class="bi bi-plus-lg"></i> Add
+                    </button>
+                    <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#batchInputModal">
+                        <i class="bi bi-list-ul"></i> Batch
+                    </button>
+                </div>
+                <div class="row g-2 align-items-center">
+                    <div class="col-auto">
+                        <label class="col-form-label small text-muted">Reason:</label>
+                    </div>
+                    <div class="col-auto">
+                        <select class="form-select form-select-sm" id="globalReason">
+                            <option value="Spoiled">Spoiled</option>
+                            <option value="Damaged">Damaged</option>
+                            <option value="Customer Return">Customer Return</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="manualFeedback" class="form-text text-danger fw-bold mt-2" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- Camera Section -->
+        <div class="card mb-4 shadow-sm overflow-hidden" id="cameraSection" style="display:none;">
+            <div class="card-body p-0 text-center position-relative">
+                 <div id="reader" style="width: 100%; min-height: 250px; background-color: #000;"></div>
+                 <div id="scanResult" class="position-absolute bottom-0 w-100 p-2 text-white fw-bold bg-success bg-opacity-75" style="display:none;"></div>
+            </div>
+        </div>
+        <button class="btn btn-outline-primary w-100 mb-4" id="startScanBtn" onclick="startScanner()">
+             <i class="bi bi-camera me-2"></i> Open Camera
+        </button>
+
+        <!-- Pending Items List -->
+        <h6 class="text-uppercase text-muted fw-bold small mb-3">Pending Returns</h6>
+        <div class="card shadow-sm mb-4">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" id="returnsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Product</th>
+                                <th>UUID</th>
+                                <th>Reason</th>
+                                <th class="text-end pe-4">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr id="emptyRow">
+                                <td colspan="4" class="text-center py-4 text-muted">
+                                    No items added yet.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Submit Actions -->
+        <div class="d-grid pb-5">
+            <button class="btn btn-warning btn-lg shadow-sm" onclick="submitReturns()" id="submitBtn" disabled>
+                <i class="bi bi-arrow-return-left me-2"></i>Process Refund (<span id="submitCount">0</span>)
+            </button>
+        </div>
+
+        <!-- Batch Modal -->
+        <div class="modal fade" id="batchInputModal" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Batch Add (Copy/Paste)</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <textarea class="form-control font-monospace" id="batchText" rows="6" placeholder="UUID1&#10;UUID2&#10;..."></textarea>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" onclick="processBatchText()">Add All</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    
+    <th:block layout:fragment="scripts">
+        <script th:inline="javascript">
+            /*<![CDATA[*/
+            const csrfToken = document.querySelector("meta[name='_csrf']").getAttribute("content");
+            const csrfHeader = document.querySelector("meta[name='_csrf_header']").getAttribute("content");
+            /*]]>*/
+
+            let pendingItems = []; // { uuid, product, reason }
+            let html5QrcodeScanner = null;
+
+            function updateUI() {
+                const tbody = document.querySelector('#returnsTable tbody');
+                tbody.innerHTML = '';
+                
+                if (pendingItems.length === 0) {
+                    tbody.innerHTML = `<tr id="emptyRow"><td colspan="4" class="text-center py-4 text-muted">No items added yet.</td></tr>`;
+                    document.getElementById('submitBtn').disabled = true;
+                    document.getElementById('itemCountBadge').innerText = '0 Items';
+                    document.getElementById('submitCount').innerText = '0';
+                    return;
+                }
+                
+                document.getElementById('submitBtn').disabled = false;
+                document.getElementById('itemCountBadge').innerText = pendingItems.length + ' Items';
+                document.getElementById('submitCount').innerText = pendingItems.length;
+
+                pendingItems.forEach((item, index) => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td class="ps-4 fw-bold">${item.product}</td>
+                        <td class="font-monospace small">${item.uuid}</td>
+                        <td>${item.reason}</td>
+                        <td class="text-end pe-4">
+                            <button class="btn btn-sm btn-outline-danger border-0" onclick="removeItem(${index})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            function removeItem(index) {
+                pendingItems.splice(index, 1);
+                updateUI();
+            }
+
+            async function validateAndAdd(uuid, reason) {
+                // Check duplicates (local)
+                if (pendingItems.some(i => i.uuid === uuid)) {
+                    throw new Error("UUID already in list");
+                }
+
+                // Server validate
+                const res = await fetch('/returns/validate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', [csrfHeader]: csrfToken },
+                    body: JSON.stringify({ uuid: uuid })
+                });
+                const data = await res.json();
+                
+                if (!data.valid) {
+                    throw new Error(data.message);
+                }
+                
+                pendingItems.push({
+                    uuid: uuid,
+                    product: data.product,
+                    reason: reason
+                });
+                updateUI();
+            }
+
+            // Manual Entry
+            function handleEnter(e) {
+                if (e.key === 'Enter') addManual();
+            }
+
+            async function addManual() {
+                const input = document.getElementById('manualUuid');
+                const feedback = document.getElementById('manualFeedback');
+                const uuid = input.value.trim();
+                const reason = document.getElementById('globalReason').value;
+
+                if (!uuid) return;
+                
+                feedback.style.display = 'none';
+                try {
+                    await validateAndAdd(uuid, reason);
+                    input.value = '';
+                    input.focus();
+                } catch (e) {
+                    feedback.innerText = e.message;
+                    feedback.style.display = 'block';
+                }
+            }
+            
+            // Batch Text Input
+            async function processBatchText() {
+                const text = document.getElementById('batchText').value;
+                const reason = document.getElementById('globalReason').value;
+                const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l);
+                
+                if (lines.length === 0) return;
+
+                // Close modal
+                var myModalEl = document.getElementById('batchInputModal');
+                var modal = bootstrap.Modal.getInstance(myModalEl);
+                modal.hide();
+                
+                // Process sequentially
+                let added = 0;
+                let errors = [];
+                
+                for (const line of lines) {
+                    try {
+                        await validateAndAdd(line, reason);
+                        added++;
+                    } catch (e) {
+                        errors.push(line + ": " + e.message);
+                    }
+                }
+                
+                if (errors.length > 0) {
+                    alert(`Added ${added} items.\nFailed:\n` + errors.join('\n'));
+                }
+                document.getElementById('batchText').value = '';
+            }
+
+            // Scanner
+            function startScanner() {
+                if (html5QrcodeScanner) return;
+
+                html5QrcodeScanner = new Html5Qrcode("reader");
+                const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+                
+                html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess)
+                .catch(err => {
+                    console.error(err);
+                });
+                
+                document.getElementById('startScanBtn').classList.add('d-none');
+                document.getElementById('cameraSection').style.display = 'block';
+            }
+            
+            // Camera visibility check
+            Html5Qrcode.getCameras().then(devices => {
+                 // Nothing special, button handles toggle
+            }).catch(err => console.log(err));
+
+            function onScanSuccess(decodedText) {
+                const reason = document.getElementById('globalReason').value;
+                const feedback = document.getElementById('scanResult');
+                
+                validateAndAdd(decodedText, reason).then(() => {
+                    feedback.innerText = "Added: " + decodedText;
+                    feedback.style.display = 'block';
+                    setTimeout(() => feedback.style.display = 'none', 1500);
+                }).catch(e => {
+                    feedback.innerText = "Error: " + e.message;
+                    feedback.style.display = 'block';
+                });
+            }
+
+            // Submit All
+            async function submitReturns() {
+                if (pendingItems.length === 0) return;
+                
+                const btn = document.getElementById('submitBtn');
+                btn.disabled = true;
+                btn.innerText = "Processing...";
+                
+                try {
+                    const res = await fetch('/returns/batch', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', [csrfHeader]: csrfToken },
+                        body: JSON.stringify({ items: pendingItems })
+                    });
+                    const data = await res.json();
+                    
+                    if (data.redirect) {
+                        // We can simulate a form submit to show flash messages using redirection?
+                        // The server response likely has a "redirect" URL.
+                        window.location.href = data.redirect + "?success=" + encodeURIComponent(`Processed ${data.processed} items.`);
+                    } else {
+                         alert("Processed: " + data.processed + ". Errors: " + data.errors);
+                         location.reload();
+                    }
+                } catch(e) {
+                    alert("System Error: " + e.message);
+                    btn.disabled = false;
+                }
+            }
+        </script>
+    </th:block>
+</body>
+</html>

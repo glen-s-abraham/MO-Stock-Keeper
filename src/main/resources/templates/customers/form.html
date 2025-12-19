@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layout/base}">
+<head>
+    <title>Customer Form</title>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="row justify-content-center">
+            <div class="col-12 col-md-8 col-lg-6">
+                <div class="d-flex align-items-center mb-4">
+                    <a th:href="@{/customers}" class="btn btn-outline-secondary btn-sm me-3"><i class="bi bi-arrow-left fs-5"></i></a>
+                    <h3 class="mb-0" th:text="${customer.id == null ? 'New Customer' : 'Edit Customer'}">Customer Form</h3>
+                </div>
+                
+                <div class="card shadow-sm">
+                    <div class="card-body p-4">
+                        <form th:action="@{/customers/save}" th:object="${customer}" method="post">
+                            <input type="hidden" th:field="*{id}" />
+                            
+                            <h6 class="text-uppercase text-muted fw-bold small mb-4">Customer Details</h6>
+                            
+                            <div class="mb-3">
+                                <label class="form-label text-muted small">Company Name</label>
+                                <input type="text" class="form-control form-control-lg" th:field="*{name}" required>
+                            </div>
+                            
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small">Contact Person</label>
+                                    <input type="text" class="form-control" th:field="*{contactPerson}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small">Tax ID / TIN</label>
+                                    <input type="text" class="form-control" th:field="*{tin}">
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small">Phone</label>
+                                    <input type="text" class="form-control" th:field="*{phone}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small">Email</label>
+                                    <input type="email" class="form-control" th:field="*{email}">
+                                </div>
+                                
+                                <div class="col-12">
+                                    <label class="form-label text-muted small">Address</label>
+                                    <textarea class="form-control" th:field="*{address}" rows="2"></textarea>
+                                </div>
+                            </div>
+                            
+                            <div class="d-grid gap-2 mt-5">
+                                <button type="submit" class="btn btn-success btn-lg shadow-sm">
+                                    <i class="bi bi-check-lg me-2"></i>Save Customer
+                                </button>
+                                <a th:href="@{/customers}" class="btn btn-link text-muted text-decoration-none">Cancel</a>
+                            </div>
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

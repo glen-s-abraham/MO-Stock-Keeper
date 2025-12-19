@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layout/base}">
+<head>
+    <title>Sales Orders</title>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="mb-1">Sales Orders</h2>
+                <p class="text-muted mb-0">Manage customer orders and fulfillment.</p>
+            </div>
+            <a th:href="@{/sales/create}" class="btn btn-primary shadow-sm"><i class="bi bi-cart-plus me-2"></i>New Order</a>
+        </div>
+        
+        <div class="row g-3">
+            <div class="col-12 col-lg-6" th:each="o : ${orders}">
+                <a th:href="@{/sales/{id}(id=${o.id})}" class="text-decoration-none">
+                    <div class="card h-100 shadow-sm hover-shadow">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div>
+                                    <h5 class="card-title text-dark mb-1" th:text="${o.orderNumber}">SO-123</h5>
+                                    <small class="text-muted"><i class="bi bi-person me-1"></i> <span th:text="${o.customer.name}">Customer</span></small>
+                                </div>
+                                <span class="badge rounded-pill px-3 py-2" 
+                                      th:classappend="${o.status.name() == 'INVOICED'} ? 'bg-success text-white' : 'bg-warning text-dark'" 
+                                      th:text="${o.status}">DRAFT</span>
+                            </div>
+                            <div class="d-flex align-items-center justify-content-between mt-3">
+                                <span class="text-muted small"><i class="bi bi-box-seam me-2"></i><span th:text="${o.allocatedUnits.size()}">0</span> Items</span>
+                                <span class="btn btn-sm btn-outline-secondary border-0"><i class="bi bi-chevron-right"></i></span>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            
+            <!-- Empty State -->
+            <div class="col-12" th:if="${#lists.isEmpty(orders)}">
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-cart-x fs-1 d-block mb-3 opacity-25"></i>
+                    No sales orders found.
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
