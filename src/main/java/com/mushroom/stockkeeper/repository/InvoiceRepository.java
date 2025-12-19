@@ -14,4 +14,6 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     List<Invoice> findByCustomerIdAndStatusNot(Long customerId, InvoiceStatus status);
 
     Optional<Invoice> findBySalesOrder(com.mushroom.stockkeeper.model.SalesOrder salesOrder);
+
+    Optional<Invoice> findTopByCustomerIdOrderByInvoiceDateDesc(Long customerId);
 }

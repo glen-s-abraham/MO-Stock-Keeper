@@ -18,5 +18,7 @@ public class Customer {
     private String email;
     private String address;
 
+    private boolean isHidden = false;
+
     // Credit Limit logic could be added here
 }

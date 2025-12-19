@@ -5,6 +5,15 @@
 </head>
 <body>
     <div layout:fragment="content">
+        <!-- Flash Messages -->
+        <div th:if="${success}" class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i><span th:text="${success}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i><span th:text="${error}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
 
         <!-- Header -->
         <div class="d-flex justify-content-between align-items-center mb-4">
@@ -43,6 +52,9 @@
                     </button>
                     <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#manualInputModal">
                         <i class="bi bi-list-ul"></i> Batch
+                    </button>
+                    <button class="btn btn-link text-decoration-none" onclick="showPickingModal()" title="Open Picker Wizard">
+                        <i class="bi bi-magic"></i>
                     </button>
                 </div>
                 <div id="manualFeedback" class="form-text text-success fw-bold" style="display:none;"></div>
@@ -178,6 +190,32 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Start Picking Mode Modal -->
+        <div class="modal fade" id="startPickingModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-0">
+                        <h5 class="modal-title fw-bold">Start Picking</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body text-center p-4">
+                        <p class="text-muted mb-4">How would you like to add items to this order?</p>
+                        <div class="d-grid gap-3">
+                            <button class="btn btn-lg btn-primary p-3" onclick="triggerStartScan()">
+                                <i class="bi bi-camera fs-3 d-block mb-1"></i>
+                                Scan QR Codes
+                            </button>
+                            <button class="btn btn-lg btn-outline-secondary p-3" onclick="triggerManualEntry()">
+                                <i class="bi bi-keyboard fs-3 d-block mb-1"></i>
+                                Manual Entry
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
     
     <th:block layout:fragment="scripts">
@@ -186,12 +224,41 @@
             const orderId = /*[[${order.id}]]*/ 0;
             const csrfToken = /*[[${_csrf.token}]]*/ '';
             const csrfHeader = /*[[${_csrf.headerName}]]*/ '';
+            const isOrderEmpty = /*[[${order.allocatedUnits.isEmpty()}]]*/ true;
+            const isGuest = /*[[${order.customer.hidden}]]*/ false; 
             /*]]>*/
 
             let html5QrcodeScanner = null;
+            
+            document.addEventListener('DOMContentLoaded', function() {
+                if (isOrderEmpty) {
+                     var myModal = new bootstrap.Modal(document.getElementById('startPickingModal'));
+                     myModal.show();
+                }
+                recalcTotals();
+            });
+
+            function triggerStartScan() {
+                var modalEl = document.getElementById('startPickingModal');
+                var modal = bootstrap.Modal.getInstance(modalEl);
+                modal.hide();
+                startScanner();
+            }
+            
+            function triggerManualEntry() {
+                var modalEl = document.getElementById('startPickingModal');
+                var modal = bootstrap.Modal.getInstance(modalEl);
+                modal.hide();
+                document.getElementById('manualSearchInput').focus();
+            }
+            
+            window.showPickingModal = function() {
+                 var myModal = new bootstrap.Modal(document.getElementById('startPickingModal'));
+                 myModal.show();
+            }
 
             function startScanner() {
-                if (html5QrcodeScanner) return; // Already running
+                if (html5QrcodeScanner) return; 
 
                 html5QrcodeScanner = new Html5Qrcode("reader");
                 const config = { fps: 10, qrbox: { width: 250, height: 250 } };
@@ -205,30 +272,25 @@
                 document.getElementById('startScanBtn').classList.add('d-none');
             }
             
-                // Check for camera availability
-                Html5Qrcode.getCameras().then(devices => {
-                    if (devices && devices.length) {
-                        document.getElementById('cameraSection').style.display = 'block';
-                    }
-                }).catch(err => {
-                   console.log("No camera permissions or devices", err);
-                });
+            // Check for camera
+            Html5Qrcode.getCameras().then(devices => {
+                if (devices && devices.length) {
+                    document.getElementById('cameraSection').style.display = 'block';
+                }
+            }).catch(err => {
+               console.log("No camera permissions or devices", err);
+            });
             
             function onScanSuccess(decodedText, decodedResult) {
-                console.log(`Code matched = ${decodedText}`, decodedResult);
-                
-                // Visual feedback immediate
                 const resDiv = document.getElementById('scanResult');
                 resDiv.style.display = 'block';
-                resDiv.innerText = "Scanned: " + decodedText; // Show what we found immediately
+                resDiv.innerText = "Scanned: " + decodedText; 
                 
                 allocateItem(decodedText, false).then(() => {
                      resDiv.innerText = "Added: " + decodedText;
                      setTimeout(() => resDiv.style.display = 'none', 2000);
-                     // Optional: refresh list part via partial HTML fetch if needed, 
-                     // but for now relying on final refresh or implicit trust
                 }).catch(e => {
-                     resDiv.innerText = "Error: " + e.message; // Error feedback in the same box
+                     resDiv.innerText = "Error: " + e.message; 
                 });
             }
 
@@ -238,7 +300,7 @@
                 if (!val) return;
                 
                 try {
-                    await allocateItem(val, true); // true = Reload to show in list
+                    await allocateItem(val, true); 
                 } catch(e) {
                      alert("Failed to add: " + e.message);
                 }
@@ -249,31 +311,25 @@
                 if (!text) return;
 
                 const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l);
-                
                 if (lines.length === 0) return;
 
-                // Close modal first
                 var myModalEl = document.getElementById('manualInputModal');
                 var modal = bootstrap.Modal.getInstance(myModalEl);
                 modal.hide();
 
-                // Process all
                 for (const line of lines) {
                     try {
-                        await allocateItem(line, false); // Don't reload yet
+                        await allocateItem(line, false);
                     } catch (e) {
                         console.error("Failed to allocate " + line, e);
-                        // Continue? or alert?
                     }
                 }
-                
-                // Done
                 location.reload();
             }
 
             function recalcTotals() {
                 const inputs = document.querySelectorAll('.product-price-input');
-                if (inputs.length === 0) return; // Read-only mode or empty
+                if (inputs.length === 0) return; 
 
                 let grandTotal = 0;
                 inputs.forEach(input => {
@@ -292,7 +348,6 @@
                 const price = input.value;
                 const productId = input.getAttribute('data-product-id');
                 
-                // Optimistic UI update
                 recalcTotals();
 
                 if (!price) return;
@@ -319,29 +374,12 @@
                      console.error(e);
                 }
             }
-            
-            function validateFinalize() {
-                let valid = true;
-                document.querySelectorAll('.product-price-input').forEach(input => {
-                    const price = parseFloat(input.value) || 0;
-                    if (price <= 0) valid = false;
-                });
-                
-                if (!valid) {
-                    alert("Please set a valid price for all products.");
-                    return false;
-                }
-                return confirm("Finalize and Invoice this order?");
-            }
-            
-            // Init totals
-            recalcTotals();
 
             function allocateItem(qrContent, shouldReload = true) {
                  return fetch(`/sales/${orderId}/allocate`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
+                        'Content-Type': 'text/plain',
                         [csrfHeader]: csrfToken
                     },
                     body: qrContent
@@ -355,6 +393,29 @@
                         });
                     }
                 });
+            }
+            
+            function validateFinalize() {
+                let valid = true;
+                document.querySelectorAll('.product-price-input').forEach(input => {
+                    const price = parseFloat(input.value) || 0;
+                    if (price <= 0) valid = false;
+                });
+                
+                if (!valid) {
+                    alert("Please set a valid price for all products.");
+                    return false;
+                }
+                
+                if (isGuest) {
+                    const markedPaid = document.getElementById('markPaidCheck').checked;
+                    if (!markedPaid) {
+                        alert("Walk-in / Guest orders must be Marked as Paid (Prepaid). Credit is not allowed.");
+                        return false;
+                    }
+                }
+
+                return confirm("Finalize and Invoice this order?");
             }
         </script>
     </th:block>

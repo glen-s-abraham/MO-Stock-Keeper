@@ -15,12 +15,14 @@ public class ReturnsService {
     private final InventoryUnitRepository unitRepository;
     private final InvoiceRepository invoiceRepository;
     private final CreditNoteRepository creditNoteRepository;
+    private final PaymentRepository paymentRepository;
 
     public ReturnsService(InventoryUnitRepository unitRepository, InvoiceRepository invoiceRepository,
-            CreditNoteRepository creditNoteRepository) {
+            CreditNoteRepository creditNoteRepository, PaymentRepository paymentRepository) {
         this.unitRepository = unitRepository;
         this.invoiceRepository = invoiceRepository;
         this.creditNoteRepository = creditNoteRepository;
+        this.paymentRepository = paymentRepository;
     }
 
     @Transactional
@@ -53,7 +55,7 @@ public class ReturnsService {
         unit.setStatus(InventoryStatus.RETURNED);
         unitRepository.save(unit);
 
-        // Create Credit Note
+        // Create Credit Note (Always create for tracking)
         CreditNote note = new CreditNote();
         note.setCustomer(invoice.getCustomer());
         note.setOriginalInvoice(invoice);
@@ -61,21 +63,27 @@ public class ReturnsService {
         note.setNoteDate(LocalDate.now());
         note.setReason(reason != null ? reason : "Return: " + uuid);
         note.setNoteNumber("CN-" + System.currentTimeMillis());
-        note.setUsed(true); // Applied immediately to balance
+        note.setUsed(true); // Default to used
         creditNoteRepository.save(note);
 
-        // Adjust Invoice Balance
-        // If BalanceDue > 0, reduce BalanceDue.
-        // If BalanceDue == 0 (Paid), we technically owe money.
-        // The prompt says: "reduce the Invoice.balanceDue".
-        // If already paid, balance becomes negative? Or we just create CN.
+        // Adjust Logic based on Payment Status
+        if (invoice.getStatus() == InvoiceStatus.PAID) {
+            // REFUND Logic: Create a negative payment
+            Payment refund = new Payment();
+            refund.setCustomer(invoice.getCustomer());
+            refund.setAmount(unitPrice.negate()); // Negative amount
+            refund.setPaymentDate(LocalDate.now());
+            refund.setPaymentMethod(PaymentMethod.CASH); // Default to Cash refund or tracked elsewhere
+            refund.setReferenceNumber("Refund for: " + uuid);
+            paymentRepository.save(refund);
 
-        invoice.setBalanceDue(invoice.getBalanceDue().subtract(unitPrice));
+            // Note: We do NOT change invoice balance or status. It remains PAID.
 
-        // If balance goes negative (Overpaid), it means we owe customer.
-        // Invoice status logic usually handles >= 0.
-        // Let's allow negative balance to indicate credit for MVP.
-        invoiceRepository.save(invoice);
+        } else {
+            // CREDIT/UNPAID Logic: Reduce balance
+            invoice.setBalanceDue(invoice.getBalanceDue().subtract(unitPrice));
+            invoiceRepository.save(invoice);
+        }
 
         return note;
     }

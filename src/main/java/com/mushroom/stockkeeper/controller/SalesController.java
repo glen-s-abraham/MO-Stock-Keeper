@@ -47,13 +47,44 @@ public class SalesController {
 
     @GetMapping("/create")
     public String createForm(Model model) {
-        model.addAttribute("customers", customerRepository.findAll());
+        model.addAttribute("customers", customerRepository.findByIsHiddenFalse());
         return "sales/create";
     }
 
     @PostMapping("/save")
-    public String save(@RequestParam Long customerId) {
-        SalesOrder so = salesService.createOrder(customerRepository.findById(customerId).orElseThrow());
+    public String save(@RequestParam(required = false) Long customerId,
+            @RequestParam(required = false) String newCustomerName,
+            @RequestParam(required = false) String newCustomerPhone,
+            @RequestParam(defaultValue = "true") boolean saveCustomer,
+            @RequestParam(defaultValue = "false") boolean isGuest,
+            org.springframework.web.servlet.mvc.support.RedirectAttributes redirectAttributes) {
+
+        com.mushroom.stockkeeper.model.Customer customer = null;
+
+        if (isGuest) {
+            customer = customerRepository.findByName("Walk-in Guest")
+                    .orElseGet(() -> {
+                        // Fallback if seeder didn't run effectively?
+                        com.mushroom.stockkeeper.model.Customer g = new com.mushroom.stockkeeper.model.Customer();
+                        g.setName("Walk-in Guest");
+                        g.setHidden(true);
+                        return customerRepository.save(g);
+                    });
+        } else if (customerId != null) {
+            customer = customerRepository.findById(customerId).orElseThrow();
+        } else if (newCustomerName != null && !newCustomerName.trim().isEmpty()) {
+            customer = new com.mushroom.stockkeeper.model.Customer();
+            customer.setName(newCustomerName);
+            customer.setPhoneNumber(newCustomerPhone);
+            customer.setHidden(!saveCustomer); // Hidden if not saving
+            customerRepository.save(customer);
+        } else {
+            // Error case
+            throw new IllegalArgumentException("Customer selection required");
+        }
+
+        SalesOrder so = salesService.createOrder(customer);
+        redirectAttributes.addFlashAttribute("promptPickingMode", true);
         return "redirect:/sales/" + so.getId();
     }
 
@@ -167,8 +198,14 @@ public class SalesController {
     @PostMapping("/{id}/finalize")
     public String finalizeOrder(@PathVariable Long id,
             @RequestParam(defaultValue = "false") boolean isPaid,
-            @RequestParam(required = false) String paymentMethod) throws Exception {
-        salesService.finalizeOrder(id, isPaid, paymentMethod);
+            @RequestParam(required = false) String paymentMethod,
+            org.springframework.web.servlet.mvc.support.RedirectAttributes redirectAttributes) {
+        try {
+            salesService.finalizeOrder(id, isPaid, paymentMethod);
+            redirectAttributes.addFlashAttribute("success", "Order finalized and invoice generated.");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Error: " + e.getMessage());
+        }
         return "redirect:/sales/" + id;
     }
 

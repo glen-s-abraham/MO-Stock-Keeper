@@ -57,7 +57,19 @@ public class CollectionsController {
 
     @GetMapping("/payment")
     public String paymentForm(Model model) {
-        model.addAttribute("customers", customerRepository.findAll());
+        List<Customer> customers = customerRepository.findAll();
+        Map<Long, BigDecimal> balances = new HashMap<>();
+
+        for (Customer c : customers) {
+            List<Invoice> unpaid = invoiceRepository.findByCustomerIdAndStatusNot(c.getId(), InvoiceStatus.PAID);
+            BigDecimal totalDue = unpaid.stream()
+                    .map(Invoice::getBalanceDue)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            balances.put(c.getId(), totalDue);
+        }
+
+        model.addAttribute("customers", customers);
+        model.addAttribute("balances", balances);
         model.addAttribute("methods", PaymentMethod.values());
         return "collections/payment";
     }
@@ -66,8 +78,23 @@ public class CollectionsController {
     public String recordPayment(@RequestParam Long customerId,
             @RequestParam BigDecimal amount,
             @RequestParam PaymentMethod method,
-            @RequestParam String reference) {
+            @RequestParam String reference,
+            org.springframework.web.servlet.mvc.support.RedirectAttributes redirectAttributes) {
+
+        // Validate Amount
+        List<Invoice> unpaid = invoiceRepository.findByCustomerIdAndStatusNot(customerId, InvoiceStatus.PAID);
+        BigDecimal totalDue = unpaid.stream()
+                .map(Invoice::getBalanceDue)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        if (amount.compareTo(totalDue) > 0) {
+            redirectAttributes.addFlashAttribute("error",
+                    "Payment amount (" + amount + ") exceeds total due (" + totalDue + ").");
+            return "redirect:/collections/payment?customerId=" + customerId;
+        }
+
         paymentService.recordPayment(customerId, amount, method, reference);
+        redirectAttributes.addFlashAttribute("success", "Payment recorded successfully.");
         return "redirect:/collections";
     }
 }

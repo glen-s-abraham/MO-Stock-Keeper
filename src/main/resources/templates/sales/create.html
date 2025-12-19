@@ -14,25 +14,113 @@
                 
                 <div class="card shadow-sm">
                     <div class="card-body p-4">
-                        <form th:action="@{/sales/save}" method="post">
-                            <h6 class="text-uppercase text-muted fw-bold small mb-4">Customer Selection</h6>
+                        <form th:action="@{/sales/save}" method="post" id="createOrderForm">
+                            <h6 class="text-uppercase text-muted fw-bold small mb-4">Customer Details</h6>
                             
-                            <div class="mb-4">
-                                <label class="form-label text-muted small">Customer</label>
-                                <select class="form-select form-select-lg" name="customerId" required>
-                                    <option value="">Select Customer...</option>
-                                    <option th:each="c : ${customers}" th:value="${c.id}" th:text="${c.name}"></option>
-                                </select>
+                            <!-- Mode Selection -->
+                            <div class="btn-group w-100 mb-4" role="group">
+                                <input type="radio" class="btn-check" name="mode" id="modeExisting" value="existing" checked onchange="toggleMode()">
+                                <label class="btn btn-outline-primary" for="modeExisting">Existing Customer</label>
+
+                                <input type="radio" class="btn-check" name="mode" id="modeNew" value="new" onchange="toggleMode()">
+                                <label class="btn btn-outline-primary" for="modeNew">New / Walk-in</label>
+                            </div>
+
+                            <!-- Existing Customer Section -->
+                            <div id="sectionExisting">
+                                <div class="mb-3">
+                                    <label class="form-label text-muted small">Search & Select</label>
+                                    <input type="text" class="form-control mb-2" id="customerSearch" placeholder="Type to filter..." onkeyup="filterCustomers()">
+                                    <select class="form-select form-select-lg" name="customerId" id="customerIdSelect" size="5">
+                                        <option th:each="c : ${customers}" th:value="${c.id}" th:text="${c.name} + ' (' + (${c.phoneNumber} ?: 'No Phone') + ')'"></option>
+                                    </select>
+                                    <small class="text-muted">Select a customer from the list.</small>
+                                </div>
+                            </div>
+
+                            <!-- New Customer Section -->
+                            <div id="sectionNew" class="d-none">
+                                <div class="mb-3">
+                                    <label class="form-label text-muted small">Full Name</label>
+                                    <input type="text" class="form-control" name="newCustomerName" id="newCustomerName" placeholder="e.g. John Doe">
+                                    <div class="form-text">Leave blank for "Walk-in Guest".</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label text-muted small">Phone Number (Optional)</label>
+                                    <input type="text" class="form-control" name="newCustomerPhone" placeholder="e.g. 9876543210">
+                                </div>
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" name="saveCustomer" id="saveCustomerCheck" checked>
+                                    <label class="form-check-label" for="saveCustomerCheck">Save to Customer Database</label>
+                                    <div class="form-text small">Uncheck for one-time (transient) customers.</div>
+                                </div>
+                                <input type="hidden" name="isGuest" id="isGuestInput" value="false">
                             </div>
                             
                             <div class="d-grid gap-2 mt-5">
                                 <button type="submit" class="btn btn-primary btn-lg shadow-sm">
-                                    <i class="bi bi-play-fill me-2"></i>Start Picking
+                                    <i class="bi bi-check-lg me-2"></i>Create Order
                                 </button>
                                 <a th:href="@{/sales}" class="btn btn-link text-muted text-decoration-none">Cancel</a>
                             </div>
                             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
                         </form>
+
+                        <script>
+                            function toggleMode() {
+                                const mode = document.querySelector('input[name="mode"]:checked').value;
+                                const secExisting = document.getElementById('sectionExisting');
+                                const secNew = document.getElementById('sectionNew');
+                                const select = document.getElementById('customerIdSelect');
+                                const nameInput = document.getElementById('newCustomerName');
+
+                                if (mode === 'existing') {
+                                    secExisting.classList.remove('d-none');
+                                    secNew.classList.add('d-none');
+                                    select.required = true;
+                                    nameInput.required = false;
+                                    document.getElementById('isGuestInput').value = 'false';
+                                } else {
+                                    secExisting.classList.add('d-none');
+                                    secNew.classList.remove('d-none');
+                                    select.required = false;
+                                    select.value = ""; // clear selection
+                                    // Name is strictly not required because blank = Guest
+                                    nameInput.required = false; 
+                                    // But if blank, we set isGuest=true on submit?
+                                    // Better handling in backend: if name blank -> Guest.
+                                }
+                            }
+
+                            function filterCustomers() {
+                                const input = document.getElementById('customerSearch');
+                                const filter = input.value.toLowerCase();
+                                const select = document.getElementById('customerIdSelect');
+                                const options = select.getElementsByTagName('option');
+
+                                for (let i = 0; i < options.length; i++) {
+                                    const txtValue = options[i].textContent || options[i].innerText;
+                                    if (txtValue.toLowerCase().indexOf(filter) > -1) {
+                                        options[i].style.display = "";
+                                    } else {
+                                        options[i].style.display = "none";
+                                    }
+                                }
+                            }
+                            
+                            // Guest Logic on Submit
+                            document.getElementById('createOrderForm').addEventListener('submit', function(e) {
+                                const mode = document.querySelector('input[name="mode"]:checked').value;
+                                if (mode === 'new') {
+                                    const name = document.getElementById('newCustomerName').value.trim();
+                                    if (name === "") {
+                                        document.getElementById('isGuestInput').value = 'true';
+                                    } else {
+                                        document.getElementById('isGuestInput').value = 'false';
+                                    }
+                                }
+                            });
+                        </script>
                     </div>
                 </div>
             </div>

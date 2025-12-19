@@ -63,6 +63,15 @@ public class DataInitializer {
                 customerRepo.save(c);
             }
 
+            // Ensure Walk-in Guest Exists
+            if (customerRepo.findByName("Walk-in Guest").isEmpty()) {
+                Customer guest = new Customer();
+                guest.setName("Walk-in Guest");
+                guest.setAddress("N/A");
+                guest.setHidden(true); // Don't show in standard lists
+                customerRepo.save(guest);
+            }
+
             // Sample Product
             if (productRepo.count() == 0) {
                 UOM boxUom = uomRepo.findByCode("BOX").orElse(null);

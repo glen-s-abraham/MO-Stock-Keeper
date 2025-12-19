@@ -116,6 +116,11 @@ public class SalesService {
             }
         }
 
+        // Validate Validation for Hidden/Guest Customers
+        if (so.getCustomer().isHidden() && !isPaid) {
+            throw new Exception("Walk-in or Guest orders must be fully paid (Prepaid only).");
+        }
+
         // Create Invoice
         Invoice invoice = new Invoice();
         invoice.setSalesOrder(so);
