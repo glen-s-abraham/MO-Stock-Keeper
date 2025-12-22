@@ -31,13 +31,17 @@ public class SalesService {
     }
 
     @Transactional
-    public SalesOrder createOrder(Customer customer) {
+    public SalesOrder createOrder(Customer customer, String orderType, String paymentMethod) {
         SalesOrder so = new SalesOrder();
         so.setCustomer(customer);
         so.setOrderDate(LocalDate.now());
         so.setStatus(SalesOrderStatus.DRAFT);
-        // SO Number: SO-Time
         so.setOrderNumber("SO-" + System.currentTimeMillis());
+
+        // New Fields
+        so.setOrderType(orderType);
+        so.setPaymentMethod(paymentMethod);
+
         return orderRepository.save(so);
     }
 

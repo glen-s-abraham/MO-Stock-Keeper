@@ -270,6 +270,7 @@
             const isOrderEmpty = /*[[${order.allocatedUnits.isEmpty()}]]*/ true;
             const isGuest = /*[[${order.customer.hidden}]]*/ false;
             const currencySymbol = /*[[${currencySymbol}]]*/ '₹';
+            const isRetail = /*[[${order.orderType == 'RETAIL'}]]*/ false;
 
             // Master List for Filtering
             const allUnits = [
@@ -298,6 +299,24 @@
 
             document.addEventListener('DOMContentLoaded', function () {
                 console.log("Picking Page Loaded. Initializing Select2...");
+
+                // Auto-configure Payment for Retail/Guest
+                if (isRetail || isGuest) {
+                    const paidCheck = document.getElementById('markPaidCheck');
+                    const paymentDiv = document.getElementById('paymentMethodDiv');
+
+                    if (paidCheck && paymentDiv) {
+                        paidCheck.checked = true;
+                        // Prevent unchecking for Guest logic enforcement
+                        if (isGuest) {
+                            paidCheck.onclick = function () { return false; }; // Soft disable
+                            paidCheck.title = "Walk-in orders must be paid immediately";
+                        }
+
+                        paymentDiv.style.display = 'block';
+                        // User must select Payment Method manually here.
+                    }
+                }
 
                 // 1. Check for persisted mode
                 const activeMode = sessionStorage.getItem('pickingMode'); // 'scan' or 'manual'

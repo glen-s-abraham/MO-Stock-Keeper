@@ -1,8 +1,11 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layout/base}">
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+    layout:decorate="~{layout/base}">
+
 <head>
     <title>Collections Report</title>
 </head>
+
 <body>
     <div layout:fragment="content">
         <div class="d-flex justify-content-between align-items-center mb-4">
@@ -10,62 +13,137 @@
                 <h2 class="mb-1">Collections Dashboard</h2>
                 <p class="text-muted mb-0">Monitor outstanding balances and record payments.</p>
             </div>
-            <a th:href="@{/collections/payment}" class="btn btn-primary shadow-sm"><i class="bi bi-cash-coin me-2"></i>Record Payment</a>
+            <a th:href="@{/collections/payment}" class="btn btn-primary shadow-sm"><i
+                    class="bi bi-cash-coin me-2"></i>Record Payment</a>
         </div>
-        
-        <div class="card shadow-sm mb-4">
-            <div class="card-header bg-light py-3">
-                <h5 class="mb-0 text-dark"><i class="bi bi-graph-up text-success me-2"></i>Customer Aging Report</h5>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light text-uppercase">
-                            <tr>
-                                <th class="ps-4">Customer</th>
-                                <th class="text-end">Outstanding Balance</th>
-                                <th class="text-end pe-4">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr th:each="c : ${customers}">
-                                <td class="ps-4">
-                                    <div class="fw-medium text-dark" th:text="${c.name}">Customer Name</div>
-                                    <small class="text-muted">ID: <span th:text="${c.id}">0</span></small>
-                                    <span th:if="${credits.get(c.id) != null and credits.get(c.id) > 0}" class="badge bg-warning text-dark ms-2">
-                                         Credit: <span th:text="${#numbers.formatCurrency(credits.get(c.id))}">$0.00</span>
-                                    </span>
-                                </td>
-                                <td class="text-end" th:with="bal=${balances.get(c.id)}">
-                                    <span th:text="${bal != null ? #numbers.formatCurrency(bal) : '$0.00'}" 
-                                          th:class="${bal != null and bal > 0} ? 'fs-5 fw-bold text-danger' : 'fs-5 fw-bold text-success'">$0.00</span>
-                                </td>
 
-                                <td class="text-end pe-4">
-                                    <form th:if="${credits.get(c.id) != null and credits.get(c.id) > 0 and balances.get(c.id) > 0}" 
-                                          th:action="@{/collections/redeem}" method="post" class="d-inline">
-                                        <input type="hidden" name="customerId" th:value="${c.id}"/>
-                                        <button type="submit" class="btn btn-sm btn-outline-warning border-0 me-2" title="Use credits to pay balance">
-                                            <i class="bi bi-gift me-2"></i>Redeem
-                                        </button>
-                                    </form>
-                                    <a th:href="@{'/collections/statement?customerId=' + ${c.id}}" class="btn btn-info btn-sm ms-1"><i class="bi bi-clock-history"></i> Statement</a>
-                                    
-                                    <a th:href="@{/collections/payment(customerId=${c.id})}" class="btn btn-sm btn-outline-success border-0"><i class="bi bi-credit-card me-2"></i>Pay</a>
-                                </td>
-                            </tr>
-                             <!-- Empty State -->
-                            <tr th:if="${#lists.isEmpty(customers)}">
-                                <td colspan="3" class="text-center py-5 text-muted">
-                                    <i class="bi bi-wallet2 fs-1 d-block mb-3 opacity-25"></i>
-                                    No customers found or all paid up!
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+        <!-- Tabs -->
+        <ul class="nav nav-tabs mb-4" id="collectionTabs" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active fw-bold" id="wholesale-tab" data-bs-toggle="tab"
+                    data-bs-target="#wholesale" type="button">Wholesale Collections</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link fw-bold" id="retail-tab" data-bs-toggle="tab" data-bs-target="#retail"
+                    type="button">Retail Sales History</button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="collectionTabContent">
+            <!-- Wholesale Tab -->
+            <div class="tab-pane fade show active" id="wholesale" role="tabpanel">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light py-3">
+                        <h5 class="mb-0 text-dark"><i class="bi bi-graph-up text-success me-2"></i>Customer Aging Report
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light text-uppercase">
+                                    <tr>
+                                        <th class="ps-4">Customer</th>
+                                        <th class="text-end">Outstanding Balance</th>
+                                        <th class="text-end pe-4">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="c : ${customers}">
+                                        <td class="ps-4">
+                                            <div class="fw-medium text-dark" th:text="${c.name}">Customer Name</div>
+                                            <small class="text-muted">ID: <span th:text="${c.id}">0</span></small>
+                                            <span th:if="${credits.get(c.id) != null and credits.get(c.id) > 0}"
+                                                class="badge bg-warning text-dark ms-2">
+                                                Credit: <span
+                                                    th:text="${#numbers.formatCurrency(credits.get(c.id))}">$0.00</span>
+                                            </span>
+                                        </td>
+                                        <td class="text-end" th:with="bal=${balances.get(c.id)}">
+                                            <span th:text="${bal != null ? #numbers.formatCurrency(bal) : '$0.00'}"
+                                                th:class="${bal != null and bal > 0} ? 'fs-5 fw-bold text-danger' : 'fs-5 fw-bold text-success'">$0.00</span>
+                                        </td>
+
+                                        <td class="text-end pe-4">
+                                            <form
+                                                th:if="${credits.get(c.id) != null and credits.get(c.id) > 0 and balances.get(c.id) > 0}"
+                                                th:action="@{/collections/redeem}" method="post" class="d-inline">
+                                                <input type="hidden" name="customerId" th:value="${c.id}" />
+                                                <button type="submit"
+                                                    class="btn btn-sm btn-outline-warning border-0 me-2"
+                                                    title="Use credits to pay balance">
+                                                    <i class="bi bi-gift me-2"></i>Redeem
+                                                </button>
+                                            </form>
+                                            <a th:href="@{'/collections/statement?customerId=' + ${c.id}}"
+                                                class="btn btn-info btn-sm ms-1"><i class="bi bi-clock-history"></i>
+                                                Statement</a>
+
+                                            <a th:href="@{/collections/payment(customerId=${c.id})}"
+                                                class="btn btn-sm btn-outline-success border-0"><i
+                                                    class="bi bi-credit-card me-2"></i>Pay</a>
+                                        </td>
+                                    </tr>
+                                    <!-- Empty State -->
+                                    <tr th:if="${#lists.isEmpty(customers)}">
+                                        <td colspan="3" class="text-center py-5 text-muted">
+                                            <i class="bi bi-wallet2 fs-1 d-block mb-3 opacity-25"></i>
+                                            All Wholesale Accounts are settled!
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Retail Tab -->
+            <div class="tab-pane fade" id="retail" role="tabpanel">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light py-3">
+                        <h5 class="mb-0 text-dark"><i class="bi bi-shop text-primary me-2"></i>Recent Retail Sales</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="ps-4">Date</th>
+                                        <th>Customer</th>
+                                        <th class="text-end">Amount</th>
+                                        <th class="text-center">Status</th>
+                                        <th class="text-end pe-4">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="i : ${retailInvoices}">
+                                        <td class="ps-4" th:text="${#temporals.format(i.invoiceDate, 'dd-MMM-yyyy')}">
+                                            Date</td>
+                                        <td th:text="${i.customer.name}">Customer</td>
+                                        <td class="text-end fw-bold font-monospace"
+                                            th:text="${#numbers.formatCurrency(i.totalAmount)}">$0.00</td>
+                                        <td class="text-center">
+                                            <span class="badge rounded-pill"
+                                                th:classappend="${i.status.name() == 'PAID'} ? 'bg-success' : 'bg-warning'"
+                                                th:text="${i.status}">STATUS</span>
+                                        </td>
+                                        <td class="text-end pe-4">
+                                            <a th:href="@{/sales/{id}(id=${i.salesOrder.id})}"
+                                                class="btn btn-sm btn-outline-primary">View Order</a>
+                                        </td>
+                                    </tr>
+                                    <tr th:if="${#lists.isEmpty(retailInvoices)}">
+                                        <td colspan="5" class="text-center py-5 text-muted">No recent retail sales
+                                            found.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </body>
+
 </html>

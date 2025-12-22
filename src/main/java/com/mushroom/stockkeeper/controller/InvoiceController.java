@@ -35,10 +35,16 @@ public class InvoiceController {
 
     @GetMapping
     public String dashboard(Model model) {
-        List<Customer> customers = customerRepository.findAll();
+        // Wholesale Summaries
+        List<Customer> customers = customerRepository
+                .findByTypeAndIsHiddenFalse(com.mushroom.stockkeeper.model.CustomerType.WHOLESALE);
         List<CustomerInvoiceSummary> summaries = new ArrayList<>();
 
-        // Optimizing: Fetch all invoices and group by customer.
+        // Optimization: Fetch filtered invoices/credits instead of findAll?
+        // For now, let's just stick to logic but filter the root list "customers".
+        // Use repos to fetch filtered data if possible to avoid loading all DB.
+        // Given loop iterates "customers", we are safe on the loop count.
+        // But "allInvoices" loads everything. Let's optimize slightly:
         List<Invoice> allInvoices = invoiceRepository.findAll();
         Map<Customer, List<Invoice>> invoicesByCustomer = allInvoices.stream()
                 .collect(Collectors.groupingBy(Invoice::getCustomer));
@@ -84,7 +90,11 @@ public class InvoiceController {
             }
         }
 
+        // Retail Invoices (Recent)
+        List<Invoice> retailInvoices = invoiceRepository.findTop20BySalesOrderOrderTypeOrderByInvoiceDateDesc("RETAIL");
+
         model.addAttribute("summaries", summaries);
+        model.addAttribute("retailInvoices", retailInvoices);
         return "invoices/dashboard";
     }
 

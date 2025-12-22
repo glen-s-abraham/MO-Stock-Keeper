@@ -43,8 +43,12 @@ public class CollectionsController {
 
     @GetMapping
     public String index(Model model) {
-        // Aging Report Logic: Map<Customer, TotalDue>
-        List<Customer> customers = customerRepository.findAll();
+        // Aging Report Logic: WHOLESALE Customers Only
+        // Replaced findByIsHiddenFalse() with strict findByType(WHOLESALE)
+        // AND ensure they are NOT hidden (to catch legacy data defaulted to Wholesale)
+        List<Customer> customers = customerRepository
+                .findByTypeAndIsHiddenFalse(com.mushroom.stockkeeper.model.CustomerType.WHOLESALE);
+
         Map<Long, BigDecimal> balances = new HashMap<>(); // Net Balance (Due - Credit)
         Map<Long, BigDecimal> credits = new HashMap<>(); // Just Credits
 
@@ -73,15 +77,21 @@ public class CollectionsController {
             balances.put(c.getId(), totalDue);
         }
 
+        // Retail Sales Segment (Recent Invoices)
+        List<Invoice> retailInvoices = invoiceRepository.findTop20BySalesOrderOrderTypeOrderByInvoiceDateDesc("RETAIL");
+
         model.addAttribute("customers", customers);
         model.addAttribute("balances", balances);
         model.addAttribute("credits", credits);
+        model.addAttribute("retailInvoices", retailInvoices);
         return "collections/index";
     }
 
     @GetMapping("/payment")
     public String paymentForm(Model model) {
-        List<Customer> customers = customerRepository.findAll();
+        // Only allow recording payments for Wholesale customers (Visible)
+        List<Customer> customers = customerRepository
+                .findByTypeAndIsHiddenFalse(com.mushroom.stockkeeper.model.CustomerType.WHOLESALE);
         Map<Long, BigDecimal> balances = new HashMap<>();
 
         for (Customer c : customers) {

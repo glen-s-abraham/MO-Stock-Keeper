@@ -20,6 +20,10 @@ public class Customer {
 
     private boolean isHidden = false;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private CustomerType type = CustomerType.WHOLESALE;
+
     @Column(precision = 10, scale = 2)
     private java.math.BigDecimal creditLimit; // Max allowed outstanding balance
 }

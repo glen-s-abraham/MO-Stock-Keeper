@@ -55,38 +55,71 @@ public class SalesController {
     }
 
     @PostMapping("/save")
-    public String save(@RequestParam(required = false) Long customerId,
-            @RequestParam(required = false) String newCustomerName,
-            @RequestParam(required = false) String newCustomerPhone,
-            @RequestParam(defaultValue = "true") boolean saveCustomer,
-            @RequestParam(defaultValue = "false") boolean isGuest,
+    public String save(
+            @RequestParam String orderType,
+            // Retail Params
+            @RequestParam(required = false) String retailName,
+            @RequestParam(required = false) String retailPhone,
+            // Payment method moved to Finalization
+            @RequestParam(defaultValue = "false") boolean saveRetailCustomer,
+            // Wholesale Params
+            @RequestParam(required = false) Long wholesaleCustomerId,
+            @RequestParam(required = false) String wholesaleNewName,
+            @RequestParam(required = false) String wholesaleNewPhone,
+            @RequestParam(defaultValue = "existing") String wsMode,
+
             org.springframework.web.servlet.mvc.support.RedirectAttributes redirectAttributes) {
 
         com.mushroom.stockkeeper.model.Customer customer = null;
+        String paymentMethod = null;
 
-        if (isGuest) {
-            customer = customerRepository.findByName("Walk-in Guest")
-                    .orElseGet(() -> {
-                        // Fallback if seeder didn't run effectively?
-                        com.mushroom.stockkeeper.model.Customer g = new com.mushroom.stockkeeper.model.Customer();
-                        g.setName("Walk-in Guest");
-                        g.setHidden(true);
-                        return customerRepository.save(g);
-                    });
-        } else if (customerId != null) {
-            customer = customerRepository.findById(customerId).orElseThrow();
-        } else if (newCustomerName != null && !newCustomerName.trim().isEmpty()) {
-            customer = new com.mushroom.stockkeeper.model.Customer();
-            customer.setName(newCustomerName);
-            customer.setPhoneNumber(newCustomerPhone);
-            customer.setHidden(!saveCustomer); // Hidden if not saving
-            customerRepository.save(customer);
+        if ("RETAIL".equalsIgnoreCase(orderType)) {
+            // RETAIL FLOW
+            String name = (retailName != null && !retailName.trim().isEmpty()) ? retailName.trim() : "Walk-in Guest";
+
+            if (saveRetailCustomer) {
+                // "Save to Contacts" -> Create Regular Customer
+                customer = new com.mushroom.stockkeeper.model.Customer();
+                customer.setName(name);
+                customer.setPhoneNumber(retailPhone);
+                customer.setHidden(false);
+                customer.setType(com.mushroom.stockkeeper.model.CustomerType.RETAIL); // Explicitly RETAIL
+                customerRepository.save(customer);
+            } else {
+                // "One-off" -> Walk-in/Guest
+                customer = new com.mushroom.stockkeeper.model.Customer();
+                customer.setName(name);
+                customer.setPhoneNumber(retailPhone);
+                customer.setHidden(true); // HIDDEN from dropdowns
+                customer.setType(com.mushroom.stockkeeper.model.CustomerType.RETAIL); // Explicitly RETAIL
+                customerRepository.save(customer);
+            }
+            // Payment captured at finalization
+            paymentMethod = null;
+
         } else {
-            // Error case
-            throw new IllegalArgumentException("Customer selection required");
+            // WHOLESALE FLOW
+            if ("new".equalsIgnoreCase(wsMode)) {
+                if (wholesaleNewName == null || wholesaleNewName.trim().isEmpty()) {
+                    throw new IllegalArgumentException("Account Name required for new Wholesale customer");
+                }
+                customer = new com.mushroom.stockkeeper.model.Customer();
+                customer.setName(wholesaleNewName.trim());
+                customer.setPhoneNumber(wholesaleNewPhone);
+                customer.setHidden(false);
+                customerRepository.save(customer);
+            } else {
+                if (wholesaleCustomerId == null) {
+                    throw new IllegalArgumentException("Customer selection required");
+                }
+                customer = customerRepository.findById(wholesaleCustomerId).orElseThrow();
+            }
+            // Wholesale typically Credit (Unpaid initially), or could be mixed. Payment
+            // Method null initially.
+            paymentMethod = null;
         }
 
-        SalesOrder so = salesService.createOrder(customer);
+        SalesOrder so = salesService.createOrder(customer, orderType, paymentMethod);
         redirectAttributes.addFlashAttribute("promptPickingMode", true);
         return "redirect:/sales/" + so.getId();
     }

@@ -44,6 +44,12 @@ public class SalesOrder {
     @Column(updatable = false)
     private LocalDateTime createdAt;
 
+    // RETAIL / WHOLESALE
+    private String orderType;
+
+    // Store intended payment method (e.g. Cash/UPI) for Retail auto-finalize
+    private String paymentMethod;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
