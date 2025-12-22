@@ -20,7 +20,10 @@
                 <button class="btn btn-outline-danger shadow-sm fw-bold" data-bs-toggle="modal" data-bs-target="#deleteBatchModal">
                     <i class="bi bi-trash me-1"></i> Delete
                 </button>
-                <a th:href="@{/batches/{id}/print(id=${batch.id})}" class="btn btn-warning shadow-sm text-dark fw-bold"><i class="bi bi-printer me-2"></i>Print Labels</a>
+                <button class="btn btn-outline-warning shadow-sm fw-bold me-1" data-bs-toggle="modal" data-bs-target="#printRangeModal">
+                    <i class="bi bi-collection me-1"></i> Range
+                </button>
+                <a th:href="@{/batches/{id}/print(id=${batch.id})}" class="btn btn-warning shadow-sm text-dark fw-bold"><i class="bi bi-printer me-2"></i>Print All</a>
             </div>
         </div>
 
@@ -80,6 +83,37 @@
             </div>
         </div>
         
+        <!-- Print Range Modal -->
+        <div class="modal fade" id="printRangeModal" tabindex="-1">
+            <div class="modal-dialog">
+                <form th:action="@{/batches/{id}/print(id=${batch.id})}" method="get" target="_blank">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Print Label Range</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="text-muted small">Enter the sequence numbers to print (e.g., 1 to 50).</p>
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <label class="form-label">From Sequence</label>
+                                    <input type="number" name="seqStart" class="form-control" placeholder="1" required min="1">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">To Sequence</label>
+                                    <input type="number" name="seqEnd" class="form-control" placeholder="10" required min="1">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-warning"><i class="bi bi-printer me-2"></i>Print Range</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <div class="row g-4 mb-5">
             <div class="col-md-3">
                 <div class="card h-100">
@@ -137,6 +171,19 @@
                                     <span class="badge bg-primary bg-opacity-10 text-primary border border-primary" th:if="${u.status.name() == 'SOLD'}">Sold</span>
                                     <span class="badge bg-danger bg-opacity-10 text-danger border border-danger" th:if="${u.status.name() == 'RETURNED'}">Returned</span>
                                     <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary" th:if="${u.status.name() == 'SPOILED'}">Spoiled</span>
+                                    
+                                    <!-- Spoil Action -->
+                                    <form th:if="${u.status.name() == 'AVAILABLE'}" th:action="@{/batches/units/{uid}/spoil(uid=${u.id})}" method="post" class="d-inline ms-2">
+                                        <input type="hidden" name="batchId" th:value="${batch.id}"/>
+                                        <button type="submit" class="btn btn-sm btn-link text-secondary p-0" title="Mark as Spoiled" onclick="return confirm('Mark this unit as SPOILED?')">
+                                            <i class="bi bi-x-circle"></i>
+                                        </button>
+                                    </form>
+                                    
+                                    <!-- Reprint Single Label (Always available) -->
+                                    <a th:href="@{/batches/{bid}/print(bid=${batch.id}, unitId=${u.id})}" class="btn btn-sm btn-link text-dark p-0 ms-2" title="Reprint Label" target="_blank">
+                                        <i class="bi bi-printer"></i>
+                                    </a>
                                  </td>
                              </tr>
                          </tbody>

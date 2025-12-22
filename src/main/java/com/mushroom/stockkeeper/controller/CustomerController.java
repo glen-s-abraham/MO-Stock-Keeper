@@ -11,9 +11,12 @@ import org.springframework.web.bind.annotation.*;
 public class CustomerController {
 
     private final CustomerRepository customerRepository;
+    private final com.mushroom.stockkeeper.repository.SalesOrderRepository orderRepository;
 
-    public CustomerController(CustomerRepository customerRepository) {
+    public CustomerController(CustomerRepository customerRepository,
+            com.mushroom.stockkeeper.repository.SalesOrderRepository orderRepository) {
         this.customerRepository = customerRepository;
+        this.orderRepository = orderRepository;
     }
 
     @GetMapping
@@ -45,6 +48,13 @@ public class CustomerController {
     public String delete(@PathVariable Long id,
             org.springframework.web.servlet.mvc.support.RedirectAttributes redirectAttributes) {
         try {
+            long orderCount = orderRepository.countByCustomerId(id);
+            if (orderCount > 0) {
+                redirectAttributes.addFlashAttribute("error",
+                        "Cannot delete customer. They have " + orderCount
+                                + " associated Sales Orders (Draft/Invoiced/Cancelled).");
+                return "redirect:/customers";
+            }
             customerRepository.deleteById(id);
             redirectAttributes.addFlashAttribute("success", "Customer deleted successfully.");
         } catch (Exception e) {

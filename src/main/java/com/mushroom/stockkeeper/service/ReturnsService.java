@@ -44,14 +44,21 @@ public class ReturnsService {
 
         // Value per unit?
         // Assume simple division or fixed price. Invoice.total / SO.units?
-        BigDecimal totalUnits = new BigDecimal(so.getAllocatedUnits().size());
-        BigDecimal unitPrice = invoice.getTotalAmount().divide(totalUnits, 2, java.math.RoundingMode.HALF_UP);
+        // Use the actual price the unit was sold for
+        BigDecimal unitPrice = unit.getSoldPrice();
+        if (unitPrice == null) {
+            // Fallback if legacy unit has no price (should not happen with new validator)
+            BigDecimal totalUnits = new BigDecimal(so.getAllocatedUnits().size());
+            unitPrice = invoice.getTotalAmount().divide(totalUnits, 2, java.math.RoundingMode.HALF_UP);
+        }
 
-        // Calculate Tax Portion
+        // Calculate Tax Portion Proportional to Price
+        // (Unit Price / Invoice Total) * Total Tax
         BigDecimal totalTax = invoice.getTaxAmount() != null ? invoice.getTaxAmount() : BigDecimal.ZERO;
         BigDecimal unitTax = BigDecimal.ZERO;
-        if (totalTax.compareTo(BigDecimal.ZERO) > 0) {
-            unitTax = totalTax.divide(totalUnits, 2, java.math.RoundingMode.HALF_UP);
+        if (totalTax.compareTo(BigDecimal.ZERO) > 0 && invoice.getTotalAmount().compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal ratio = unitPrice.divide(invoice.getTotalAmount(), 6, java.math.RoundingMode.HALF_UP);
+            unitTax = totalTax.multiply(ratio).setScale(2, java.math.RoundingMode.HALF_UP);
         }
 
         // Update Unit Status

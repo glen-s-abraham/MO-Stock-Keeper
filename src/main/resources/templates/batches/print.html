@@ -28,20 +28,25 @@
 </head>
 <body>
     <div class="container-fluid">
-        <div class="no-print py-3 border-bottom border-light mb-4 d-flex justify-content-between align-items-center bg-dark text-white p-3 rounded">
-            <h4 class="mb-0">Print Labels: <span th:text="${batch.batchCode}"></span></h4>
+        <div class="no-print d-flex justify-content-between align-items-center bg-light p-3 border-bottom mb-4">
             <div>
-                <button onclick="window.print()" class="btn btn-primary"><i class="bi bi-printer me-2"></i>Print Now</button>
-                <a th:href="@{/batches/{id}(id=${batch.id})}" class="btn btn-outline-light">Back</a>
+                <h4 class="mb-0">Batch: <span th:text="${batch.batchCode}"></span></h4>
+                <small class="text-muted" th:text="${batch.product.name}"></small>
+            </div>
+            <div>
+                <button onclick="window.print()" class="btn btn-primary"><i class="bi bi-printer-fill me-2"></i>Print</button>
+                <a th:href="@{/batches/{id}(id=${batch.id})}" class="btn btn-outline-secondary">Back</a>
             </div>
         </div>
         
         <div class="label-grid">
             <div th:each="u : ${units}" class="label-item">
-                <img th:src="'data:image/png;base64,' + ${qrCodes.get(u.id)}" class="qr-img"/>
-                <div style="font-size: 0.8rem; font-weight: bold;" th:text="${u.uuid}">UUID</div>
-                <div style="font-size: 0.7rem;" th:text="${batch.product.name}">Product</div>
-                <div style="font-size: 0.6rem;" th:text="${batch.expiryDate}">Expiry</div>
+                <div class="d-flex align-items-center justify-content-center flex-column h-100">
+                    <img th:src="'data:image/png;base64,' + ${qrCodes.get(u.id)}" class="qr-img"/>
+                    <div class="fw-bold mt-1" style="font-size: 10pt; font-family: monospace;" th:text="${u.uuid}">UUID</div>
+                    <div class="text-uppercase fw-bold" style="font-size: 8pt;" th:text="${batch.product.name}">PROD</div>
+                    <div style="font-size: 7pt;">EXP: <span th:text="${batch.expiryDate}">DATE</span></div>
+                </div>
             </div>
         </div>
     </div>

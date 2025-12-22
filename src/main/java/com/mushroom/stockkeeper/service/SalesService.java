@@ -7,7 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.UUID;
+// import java.util.UUID;
 
 @Service
 public class SalesService {
@@ -17,15 +17,17 @@ public class SalesService {
     private final InvoiceRepository invoiceRepository;
     private final PaymentRepository paymentRepository;
     private final CreditNoteRepository creditNoteRepository;
+    private final AuditService auditService;
 
     public SalesService(SalesOrderRepository orderRepository, InventoryUnitRepository unitRepository,
             InvoiceRepository invoiceRepository, PaymentRepository paymentRepository,
-            CreditNoteRepository creditNoteRepository) {
+            CreditNoteRepository creditNoteRepository, AuditService auditService) {
         this.orderRepository = orderRepository;
         this.unitRepository = unitRepository;
         this.invoiceRepository = invoiceRepository;
         this.paymentRepository = paymentRepository;
         this.creditNoteRepository = creditNoteRepository;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -55,6 +57,11 @@ public class SalesService {
                 .orElseThrow(() -> new Exception("Unit not found: " + uuid));
 
         if (unit.getStatus() != InventoryStatus.AVAILABLE) {
+            // Idempotency: If already in THIS order, return success
+            if (unit.getStatus() == InventoryStatus.ALLOCATED && unit.getSalesOrder() != null
+                    && unit.getSalesOrder().getId().equals(orderId)) {
+                return; // Already added, ignore
+            }
             throw new Exception("Unit " + uuid + " is not AVAILABLE (Status: " + unit.getStatus() + ")");
         }
 
@@ -91,6 +98,10 @@ public class SalesService {
 
     @Transactional
     public void updateProductPrice(Long orderId, Long productId, BigDecimal price) throws Exception {
+        if (price == null || price.compareTo(BigDecimal.ZERO) < 0) {
+            throw new Exception("Price cannot be negative.");
+        }
+
         SalesOrder so = orderRepository.findById(orderId).orElseThrow();
 
         if (so.getStatus() == SalesOrderStatus.INVOICED || so.getStatus() == SalesOrderStatus.CANCELLED) {
@@ -99,8 +110,12 @@ public class SalesService {
 
         for (InventoryUnit unit : so.getAllocatedUnits()) {
             if (unit.getBatch().getProduct().getId().equals(productId)) {
+                BigDecimal oldPrice = unit.getSoldPrice();
                 unit.setSoldPrice(price);
                 unitRepository.save(unit);
+                // Detail Audit can be noisy, but price change is critical
+                auditService.log("UPDATE_PRICE",
+                        "Order: " + orderId + ", Unit: " + unit.getUuid() + ", Old: " + oldPrice + ", New: " + price);
             }
         }
     }
@@ -125,9 +140,31 @@ public class SalesService {
             }
         }
 
+        // Calculate Total
+        BigDecimal total = BigDecimal.ZERO;
+        for (InventoryUnit unit : so.getAllocatedUnits()) {
+            total = total.add(unit.getSoldPrice());
+        }
+
         // Validate Validation for Hidden/Guest Customers
         if (so.getCustomer().isHidden() && !isPaid) {
             throw new Exception("Walk-in or Guest orders must be fully paid (Prepaid only).");
+        }
+
+        // Validate Credit Limit
+        if (!isPaid && so.getCustomer().getCreditLimit() != null
+                && so.getCustomer().getCreditLimit().compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal currentDebt = invoiceRepository.sumOutstandingBalanceByCustomer(so.getCustomer().getId());
+            if (currentDebt == null)
+                currentDebt = BigDecimal.ZERO;
+
+            BigDecimal newTotalDebt = currentDebt.add(total);
+            if (newTotalDebt.compareTo(so.getCustomer().getCreditLimit()) > 0) {
+                // Formatting for display
+                throw new Exception("Credit Limit Reached! Limit: " + so.getCustomer().getCreditLimit()
+                        + ", Current Debt: " + currentDebt
+                        + ", This Order: " + total);
+            }
         }
 
         // Create Invoice
@@ -153,12 +190,6 @@ public class SalesService {
             }
         }
         invoice.setInvoiceNumber(String.format("INV-%05d", nextNum));
-
-        // Calculate Total
-        BigDecimal total = BigDecimal.ZERO;
-        for (InventoryUnit unit : so.getAllocatedUnits()) {
-            total = total.add(unit.getSoldPrice());
-        }
 
         invoice.setTotalAmount(total);
 
@@ -205,13 +236,31 @@ public class SalesService {
     public void cancelOrder(Long orderId) throws Exception {
         SalesOrder so = orderRepository.findById(orderId).orElseThrow();
 
+        if (so.getStatus() == SalesOrderStatus.DRAFT) {
+            // Simple Clean up for Abandoned / Mistaken Drafts
+            auditService.log("CANCEL_DRAFT", "Cancelled Draft Order " + orderId);
+            // Revert Units
+            for (InventoryUnit unit : so.getAllocatedUnits()) {
+                unit.setStatus(InventoryStatus.AVAILABLE);
+                unit.setSalesOrder(null);
+                unit.setSoldPrice(null);
+                unitRepository.save(unit);
+            }
+            so.getAllocatedUnits().clear();
+            so.setStatus(SalesOrderStatus.CANCELLED);
+            orderRepository.save(so);
+            return;
+        }
+
         if (so.getStatus() != SalesOrderStatus.INVOICED) {
-            throw new Exception("Only finalized invoices can be cancelled.");
+            throw new Exception("Only finalized invoices or Drafts can be cancelled.");
         }
 
         // Cancel Invoice
         com.mushroom.stockkeeper.model.Invoice invoice = invoiceRepository.findBySalesOrder(so)
                 .orElseThrow(() -> new Exception("Invoice not found for this order."));
+
+        auditService.log("CANCEL_ORDER", "Cancelling Order " + orderId + " (Inv: " + invoice.getInvoiceNumber() + ")");
 
         // SAFE CANCELLATION: Issue Refund if Paid
         if (invoice.getAmountPaid().compareTo(BigDecimal.ZERO) > 0) {
@@ -225,14 +274,14 @@ public class SalesService {
             refundNote.setNoteNumber("RF-" + System.currentTimeMillis());
             refundNote.setUsed(false);
             creditNoteRepository.save(refundNote);
+
+            auditService.log("ISSUE_REFUND", "Refund Note " + refundNote.getNoteNumber() + " for Order " + orderId);
         }
 
         invoice.setStatus(InvoiceStatus.CANCELLED);
         invoice.setBalanceDue(BigDecimal.ZERO);
         // We keep TotalAmount and AmountPaid for historical record, but status is
         // CANCELLED.
-        // invoice.setTotalAmount(BigDecimal.ZERO); // Optional: Keep strict history
-        // invoice.setAmountPaid(BigDecimal.ZERO);
         invoiceRepository.save(invoice);
 
         // Revert Units

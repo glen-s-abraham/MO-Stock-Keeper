@@ -36,7 +36,8 @@ public class AdminController {
     @PostMapping("/settings")
     public String saveSettings(@RequestParam Map<String, String> allParams, RedirectAttributes redirectAttributes) {
         // Filter and save known keys
-        String[] keys = { "company_name", "company_address", "company_email", "company_phone", "company_tax_id" };
+        String[] keys = { "company_name", "company_address", "company_email", "company_phone", "company_tax_id",
+                "currency_symbol" };
 
         for (String key : keys) {
             String val = allParams.getOrDefault(key, "");

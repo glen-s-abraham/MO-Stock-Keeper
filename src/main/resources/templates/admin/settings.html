@@ -35,9 +35,14 @@
                             <label class="form-label">Email</label>
                             <input type="email" class="form-control" name="company_email" th:value="${settings.get('company_email')}">
                         </div>
-                         <div class="col-md-6">
+                        <div class="col-md-6">
                             <label class="form-label">Tax ID / GSTIN</label>
                             <input type="text" class="form-control" name="company_tax_id" th:value="${settings.get('company_tax_id')}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Currency Symbol</label>
+                            <input type="text" class="form-control" name="currency_symbol" th:value="${settings.get('currency_symbol')}" placeholder="₹">
+                            <div class="form-text">Default: ₹ (Rupee)</div>
                         </div>
                     </div>
                     

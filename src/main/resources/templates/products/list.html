@@ -13,6 +13,16 @@
             <a th:href="@{/products/create}" class="btn btn-primary shadow-sm"><i class="bi bi-plus-lg me-2"></i>New Product</a>
         </div>
         
+        <!-- Alerts -->
+        <div th:if="${success}" class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i> <span th:text="${success}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i> <span th:text="${error}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+
         <div class="card shadow-sm">
             <div class="card-body p-0">
                 <div class="table-responsive">

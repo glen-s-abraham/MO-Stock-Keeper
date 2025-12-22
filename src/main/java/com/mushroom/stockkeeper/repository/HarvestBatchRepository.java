@@ -6,4 +6,10 @@ import java.util.Optional;
 
 public interface HarvestBatchRepository extends JpaRepository<HarvestBatch, Long> {
     Optional<HarvestBatch> findByBatchCode(String batchCode);
+
+    long countByProductId(Long productId);
+
+    java.util.List<HarvestBatch> findByExpiryDateGreaterThanEqualOrExpiryDateIsNull(java.time.LocalDate date);
+
+    java.util.List<HarvestBatch> findByExpiryDateLessThan(java.time.LocalDate date);
 }

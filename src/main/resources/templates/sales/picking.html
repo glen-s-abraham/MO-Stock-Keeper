@@ -26,8 +26,8 @@
                     <i class="bi bi-printer me-1"></i> Print
                 </a>
                 
-                <form th:if="${order.status.name() == 'INVOICED'}" th:action="@{/sales/{id}/cancel(id=${order.id})}" method="post" onsubmit="return confirm('Are you sure you want to CANCEL this invoice? This will revert all stock to AVAILABLE.')">
-                    <button type="submit" class="btn btn-outline-danger btn-sm shadow-sm">
+                <form th:if="${order.status.name() == 'INVOICED' or order.status.name() == 'DRAFT'}" th:action="@{/sales/{id}/cancel(id=${order.id})}" method="post" onsubmit="return confirm('Are you sure you want to CANCEL/VOID this order? Allocations will be released.')">
+                    <button type="submit" class="btn btn-outline-danger btn-sm shadow-sm" th:text="${order.status.name() == 'INVOICED'} ? 'Cancel Invoice' : 'Void Draft'">
                          <i class="bi bi-x-circle me-1"></i> Cancel
                     </button>
                 </form>
@@ -123,7 +123,7 @@
                             <tr>
                                 <th class="ps-3">Product</th>
                                 <th class="text-center">Qty</th>
-                                <th class="text-end" style="width: 150px;">Unit Price (₹)</th>
+                                <th class="text-end" style="width: 150px;">Unit Price (<span th:text="${currencySymbol}"></span>)</th>
                                 <th class="text-end pe-3">Subtotal</th>
                             </tr>
                         </thead>
@@ -148,7 +148,7 @@
                         <tfoot class="table-light">
                             <tr>
                                 <td colspan="3" class="text-end fw-bold">Total Invoice Value:</td>
-                                <td class="text-end pe-3 fw-bold fs-5 text-success" id="grandTotal" th:text="'₹' + ${grandTotal}">₹0.00</td>
+                                <td class="text-end pe-3 fw-bold fs-5 text-success" id="grandTotal" th:text="${currencySymbol} + ${grandTotal}">0.00</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -242,6 +242,7 @@
             const csrfHeader = /*[[${_csrf.headerName}]]*/ '';
             const isOrderEmpty = /*[[${order.allocatedUnits.isEmpty()}]]*/ true;
             const isGuest = /*[[${order.customer.hidden}]]*/ false;
+            const currencySymbol = /*[[${currencySymbol}]]*/ '₹';
             
             // Master List for Filtering
             const allUnits = [
@@ -534,7 +535,7 @@
                     row.querySelector('.product-subtotal').innerText = subtotal.toFixed(2);
                     grandTotal += subtotal;
                 });
-                document.getElementById('grandTotal').innerText = "₹" + grandTotal.toFixed(2);
+                document.getElementById('grandTotal').innerText = currencySymbol + grandTotal.toFixed(2);
             }
 
             async function updateProductPrice(input) {

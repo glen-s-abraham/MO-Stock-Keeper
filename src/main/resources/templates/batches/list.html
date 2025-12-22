@@ -13,6 +13,19 @@
             <a th:href="@{/batches/create}" class="btn btn-success shadow-lg"><i class="bi bi-box-seam me-2"></i>New Batch</a>
         </div>
         
+        <!-- Filter Tabs -->
+        <ul class="nav nav-pills mb-4">
+          <li class="nav-item me-2">
+            <a class="nav-link" th:classappend="${currentFilter == 'active'} ? 'active'" th:href="@{/batches(filter='active')}">Active</a>
+          </li>
+          <li class="nav-item me-2">
+            <a class="nav-link" th:classappend="${currentFilter == 'expired'} ? 'active bg-danger' : 'text-danger'" th:href="@{/batches(filter='expired')}">Expired</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" th:classappend="${currentFilter == 'all'} ? 'active bg-secondary' : 'text-secondary'" th:href="@{/batches(filter='all')}">All</a>
+          </li>
+        </ul>
+        
         <div class="row g-3">
             <div class="col-12 col-md-6 col-lg-4" th:each="b : ${batches}">
                 <a th:href="@{/batches/{id}(id=${b.id})}" class="text-decoration-none">
@@ -26,6 +39,8 @@
                                 <span class="badge bg-primary bg-opacity-10 text-primary border border-primary">
                                     <span th:text="${b.totalUnits}">0</span> Units
                                 </span>
+                                <span th:if="${b.expiryDate != null and b.expiryDate.isBefore(T(java.time.LocalDate).now())}" 
+                                      class="badge bg-danger ms-2">EXPIRED</span>
                             </div>
                             <div class="d-flex align-items-center text-muted small">
                                 <i class="bi bi-tag me-2"></i>

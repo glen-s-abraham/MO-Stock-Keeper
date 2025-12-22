@@ -14,9 +14,13 @@ public class ProductController {
     private final ProductRepository productRepository;
     private final UOMRepository uomRepository;
 
-    public ProductController(ProductRepository productRepository, UOMRepository uomRepository) {
+    private final com.mushroom.stockkeeper.repository.HarvestBatchRepository batchRepository;
+
+    public ProductController(ProductRepository productRepository, UOMRepository uomRepository,
+            com.mushroom.stockkeeper.repository.HarvestBatchRepository batchRepository) {
         this.productRepository = productRepository;
         this.uomRepository = uomRepository;
+        this.batchRepository = batchRepository;
     }
 
     @GetMapping
@@ -47,8 +51,16 @@ public class ProductController {
     }
 
     @GetMapping("/delete/{id}")
-    public String delete(@PathVariable Long id) {
+    public String delete(@PathVariable Long id,
+            org.springframework.web.servlet.mvc.support.RedirectAttributes redirectAttributes) {
+        long usageCount = batchRepository.countByProductId(id);
+        if (usageCount > 0) {
+            redirectAttributes.addFlashAttribute("error",
+                    "Cannot delete Product. It is used in " + usageCount + " batches.");
+            return "redirect:/products";
+        }
         productRepository.deleteById(id);
+        redirectAttributes.addFlashAttribute("success", "Product deleted successfully.");
         return "redirect:/products";
     }
 }

@@ -19,10 +19,13 @@ public class BatchService {
 
     private final HarvestBatchRepository batchRepository;
     private final InventoryUnitRepository unitRepository;
+    private final AuditService auditService;
 
-    public BatchService(HarvestBatchRepository batchRepository, InventoryUnitRepository unitRepository) {
+    public BatchService(HarvestBatchRepository batchRepository, InventoryUnitRepository unitRepository,
+            AuditService auditService) {
         this.batchRepository = batchRepository;
         this.unitRepository = unitRepository;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -30,11 +33,19 @@ public class BatchService {
         if (quantity <= 0) {
             throw new IllegalArgumentException("Quantity must be positive");
         }
+        if (quantity > 5000) {
+            throw new IllegalArgumentException("Batch size limit exceeded. Max 5000 units per batch.");
+        }
         // Create Batch
         HarvestBatch batch = new HarvestBatch();
         batch.setProduct(product);
         batch.setTotalUnits(quantity);
         batch.setBatchDate(batchDate != null ? batchDate : LocalDate.now());
+
+        // Edge Case: Future Dates
+        if (batch.getBatchDate().isAfter(LocalDate.now())) {
+            throw new IllegalArgumentException("Harvest date cannot be in the future.");
+        }
 
         // Calculate Expiry
         if (product.getDefaultExpiryDays() != null) {
@@ -42,10 +53,12 @@ public class BatchService {
             batch.setExpiryDate(batch.getBatchDate().plusDays(product.getDefaultExpiryDays()));
         }
 
-        // Generate Batch Code: B-YYYYMMDD-SEQ
+        // Generate Batch Code: B-YYYYMMDD-TIME
+        // e.g., B-20231222-1703239999
+        // This avoids race conditions with count() and unique constraint violations
         String dateStr = batch.getBatchDate().format(DateTimeFormatter.BASIC_ISO_DATE);
-        long count = batchRepository.count(); // Simple sequence for now
-        String batchCode = "B-" + dateStr + "-" + (count + 1);
+        String uniqueSuffix = String.valueOf(System.currentTimeMillis()).substring(6); // shorter suffix
+        String batchCode = "B-" + dateStr + "-" + uniqueSuffix;
         batch.setBatchCode(batchCode);
 
         HarvestBatch savedBatch = batchRepository.save(batch);
@@ -77,28 +90,40 @@ public class BatchService {
     public void deleteBatch(Long batchId) throws Exception {
         HarvestBatch batch = batchRepository.findById(batchId).orElseThrow();
 
-        // Check for usage
-        long usedUnits = unitRepository.findAll().stream()
-                .filter(u -> u.getBatch().getId().equals(batchId))
-                .filter(u -> u.getStatus() != InventoryStatus.AVAILABLE)
-                .count();
+        // Check for usage (Optimized Query)
+        long usedUnits = unitRepository.countByBatchIdAndStatusNot(batchId, InventoryStatus.AVAILABLE);
 
         if (usedUnits > 0) {
             throw new Exception("Cannot delete batch. " + usedUnits + " units are Sold or allocated.");
         }
 
-        // Delete all units
-        unitRepository.findAll().stream()
-                .filter(u -> u.getBatch().getId().equals(batchId))
-                .forEach(unitRepository::delete);
+        // Delete all units (Optimized Query)
+        unitRepository.deleteByBatchId(batchId);
+
+        // Audit
+        auditService.log("DELETE_BATCH", "Deleted Batch " + batchId + " (" + batch.getBatchCode() + ")");
 
         // Delete batch
         batchRepository.delete(batch);
     }
 
     @Transactional
-    public void updateBatch(Long batchId, LocalDate newDate) {
+    public void updateBatch(Long batchId, LocalDate newDate) throws Exception {
         HarvestBatch batch = batchRepository.findById(batchId).orElseThrow();
+
+        // 1. Validate Future Date
+        if (newDate.isAfter(LocalDate.now())) {
+            throw new IllegalArgumentException("Harvest date cannot be in the future.");
+        }
+
+        // 2. Check Integrity: Cannot update if items are sold/returned
+        long usedUnits = unitRepository.countByBatchIdAndStatusNot(batchId, InventoryStatus.AVAILABLE);
+        if (usedUnits > 0) {
+            throw new Exception(
+                    "Cannot update batch date. " + usedUnits + " units have already been processed (Sold/Spoiled).");
+        }
+
+        LocalDate oldDate = batch.getBatchDate();
         batch.setBatchDate(newDate);
 
         // Recalculate expiry
@@ -107,5 +132,19 @@ public class BatchService {
         }
 
         batchRepository.save(batch);
+
+        auditService.log("UPDATE_BATCH",
+                "Updated Batch " + batch.getBatchCode() + " Date from " + oldDate + " to " + newDate);
+    }
+
+    @Transactional
+    public void markUnitSpoiled(Long unitId) {
+        InventoryUnit unit = unitRepository.findById(unitId).orElseThrow();
+        if (unit.getStatus() != InventoryStatus.AVAILABLE) {
+            throw new IllegalStateException("Only available units can be marked as spoiled.");
+        }
+        unit.setStatus(InventoryStatus.SPOILED);
+        unitRepository.save(unit);
+        auditService.log("UNIT_SPOILED", "Marked Unit " + unit.getUuid() + " as SPOILED");
     }
 }

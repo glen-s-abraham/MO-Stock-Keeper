@@ -29,7 +29,7 @@
                                 <label class="form-label text-muted small">Quantity (Units/Boxes)</label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-transparent border-end-0 text-muted"><i class="bi bi-boxes"></i></span>
-                                    <input type="number" class="form-control form-control-lg border-start-0 ps-0" name="quantity" min="1" max="1000" value="100" required>
+                                    <input type="number" class="form-control form-control-lg border-start-0 ps-0" name="quantity" min="1" max="5000" value="100" required>
                                 </div>
                             </div>
                             
@@ -52,5 +52,15 @@
             </div>
         </div>
     </div>
+    <th:block layout:fragment="scripts">
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const dateInput = document.querySelector('input[name="batchDate"]');
+                if (dateInput) {
+                    dateInput.max = new Date().toISOString().split('T')[0];
+                }
+            });
+        </script>
+    </th:block>
 </body>
 </html>

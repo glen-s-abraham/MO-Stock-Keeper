@@ -37,8 +37,28 @@ public class HarvestBatchController {
     }
 
     @GetMapping
-    public String list(Model model) {
-        model.addAttribute("batches", batchRepository.findAll());
+    public String list(@RequestParam(defaultValue = "active") String filter, Model model) {
+        LocalDate today = LocalDate.now();
+        List<HarvestBatch> batches;
+
+        switch (filter) {
+            case "expired":
+                batches = batchRepository.findByExpiryDateLessThan(today);
+                break;
+            case "all":
+                batches = batchRepository.findAll();
+                break;
+            case "active":
+            default:
+                batches = batchRepository.findByExpiryDateGreaterThanEqualOrExpiryDateIsNull(today);
+                break;
+        }
+
+        // Simple In-Memory Sort for now (or move sort to repo if performance needed)
+        batches.sort(java.util.Comparator.comparing(HarvestBatch::getBatchDate).reversed());
+
+        model.addAttribute("batches", batches);
+        model.addAttribute("currentFilter", filter);
         return "batches/list";
     }
 
@@ -52,8 +72,8 @@ public class HarvestBatchController {
     public String save(@RequestParam Long productId, @RequestParam Integer quantity,
             @RequestParam(required = false) LocalDate batchDate) {
         Product product = productRepository.findById(productId).orElseThrow();
-        batchService.createBatch(product, quantity, batchDate);
-        return "redirect:/batches";
+        HarvestBatch savedBatch = batchService.createBatch(product, quantity, batchDate);
+        return "redirect:/batches/" + savedBatch.getId();
     }
 
     @GetMapping("/{id}")
@@ -76,13 +96,45 @@ public class HarvestBatchController {
     }
 
     @GetMapping("/{id}/print")
-    public String printLabels(@PathVariable Long id, Model model) {
+    public String printLabels(@PathVariable Long id,
+            @RequestParam(required = false) Long unitId,
+            @RequestParam(required = false) Integer seqStart,
+            @RequestParam(required = false) Integer seqEnd,
+            Model model) {
         HarvestBatch batch = batchRepository.findById(id).orElseThrow();
 
-        // Optimize: Implement findByBatchId in repo in next refactor
-        List<InventoryUnit> units = unitRepository.findAll().stream()
+        List<InventoryUnit> units;
+
+        // Base List
+        // Optimize: Implement findByBatchId in repo to avoid loading all
+        List<InventoryUnit> allBatchUnits = unitRepository.findAll().stream()
                 .filter(u -> u.getBatch().getId().equals(id))
                 .collect(Collectors.toList());
+
+        if (unitId != null) {
+            // Print specific unit
+            units = allBatchUnits.stream()
+                    .filter(u -> u.getId().equals(unitId))
+                    .collect(Collectors.toList());
+        } else if (seqStart != null && seqEnd != null) {
+            // Print Range (e.g. 1 to 50)
+            // Assumption: UUID is BatchCode-SEQ.
+            units = allBatchUnits.stream()
+                    .filter(u -> {
+                        try {
+                            String uuid = u.getUuid();
+                            String seqStr = uuid.substring(uuid.lastIndexOf('-') + 1);
+                            int seq = Integer.parseInt(seqStr);
+                            return seq >= seqStart && seq <= seqEnd;
+                        } catch (Exception e) {
+                            return false; // Skip malformed
+                        }
+                    })
+                    .collect(Collectors.toList());
+        } else {
+            // Print All
+            units = allBatchUnits;
+        }
 
         // Generate Base64 QRs for each unit
         // Map<UnitId, Base64String>
@@ -119,5 +171,17 @@ public class HarvestBatchController {
             redirectAttributes.addFlashAttribute("error", "Error: " + e.getMessage());
         }
         return "redirect:/batches/" + id;
+    }
+
+    @PostMapping("/units/{unitId}/spoil")
+    public String markSpoiled(@PathVariable Long unitId, @RequestParam Long batchId,
+            org.springframework.web.servlet.mvc.support.RedirectAttributes redirectAttributes) {
+        try {
+            batchService.markUnitSpoiled(unitId);
+            redirectAttributes.addFlashAttribute("success", "Unit marked as spoiled.");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Error: " + e.getMessage());
+        }
+        return "redirect:/batches/" + batchId;
     }
 }

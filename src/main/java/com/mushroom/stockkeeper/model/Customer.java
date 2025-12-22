@@ -20,5 +20,6 @@ public class Customer {
 
     private boolean isHidden = false;
 
-    // Credit Limit logic could be added here
+    @Column(precision = 10, scale = 2)
+    private java.math.BigDecimal creditLimit; // Max allowed outstanding balance
 }

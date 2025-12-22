@@ -20,4 +20,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     Optional<Invoice> findTopByCustomerIdOrderByInvoiceDateDesc(Long customerId);
 
     java.util.Optional<List<Invoice>> findByCustomerIdOrderByInvoiceDateDesc(Long customerId);
+
+    @org.springframework.data.jpa.repository.Query("SELECT SUM(i.balanceDue) FROM Invoice i WHERE i.customer.id = :customerId AND i.status != 'CANCELLED'")
+    java.math.BigDecimal sumOutstandingBalanceByCustomer(Long customerId);
 }

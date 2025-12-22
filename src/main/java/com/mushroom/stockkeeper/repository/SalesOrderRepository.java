@@ -10,4 +10,6 @@ public interface SalesOrderRepository extends JpaRepository<SalesOrder, Long> {
     Optional<SalesOrder> findByOrderNumber(String orderNumber);
 
     List<SalesOrder> findByStatus(SalesOrderStatus status);
+
+    long countByCustomerId(Long customerId);
 }

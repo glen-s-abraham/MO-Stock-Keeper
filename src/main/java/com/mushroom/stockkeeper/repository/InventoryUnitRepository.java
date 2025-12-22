@@ -8,4 +8,8 @@ public interface InventoryUnitRepository extends JpaRepository<InventoryUnit, Lo
     Optional<InventoryUnit> findByUuid(String uuid);
 
     java.util.List<InventoryUnit> findByStatus(com.mushroom.stockkeeper.model.InventoryStatus status);
+
+    long countByBatchIdAndStatusNot(Long batchId, com.mushroom.stockkeeper.model.InventoryStatus status);
+
+    void deleteByBatchId(Long batchId);
 }
