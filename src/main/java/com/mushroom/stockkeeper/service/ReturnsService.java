@@ -76,12 +76,16 @@ public class ReturnsService {
         note.setNoteNumber("CN-" + System.currentTimeMillis());
 
         // UNIFIED LOGIC:
-        // 1. Walk-in / Guest Customers (isHidden) -> Immediate Refund (Used=true)
-        // 2. Account Customers -> Store Credit (Used=false)
-        if (invoice.getCustomer().isHidden()) {
+        // 1. Walk-in / Guest / Saved Retail -> Immediate Refund (Used=true, Cash Out)
+        // 2. Account Customers (Wholesale) -> Store Credit (Used=false)
+
+        boolean isRetail = invoice.getCustomer().getType() == CustomerType.RETAIL
+                || invoice.getCustomer().isHidden();
+
+        if (isRetail) {
             note.setUsed(true);
             note.setRemainingAmount(BigDecimal.ZERO);
-            note.setReason(note.getReason() + " (Walk-in Refund)");
+            note.setReason(note.getReason() + " (Cash Refund)");
         } else {
             note.setUsed(false);
             note.setRemainingAmount(unitPrice);

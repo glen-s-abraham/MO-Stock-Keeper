@@ -1,5 +1,6 @@
 package com.mushroom.stockkeeper.service;
 
+import com.mushroom.stockkeeper.service.AuditService; // Explicit import
 import com.mushroom.stockkeeper.model.InvoiceStatus;
 import com.mushroom.stockkeeper.model.*;
 import com.mushroom.stockkeeper.repository.*;
@@ -14,17 +15,16 @@ import java.util.Optional;
 @Service
 public class PaymentService {
 
-    private final PaymentRepository paymentRepository;
-    private final InvoiceRepository invoiceRepository;
-    private final CustomerRepository customerRepository;
-    private final CreditNoteRepository creditNoteRepository;
+    private final AuditService auditService;
 
     public PaymentService(PaymentRepository paymentRepository, InvoiceRepository invoiceRepository,
-            CustomerRepository customerRepository, CreditNoteRepository creditNoteRepository) {
+            CustomerRepository customerRepository, CreditNoteRepository creditNoteRepository,
+            AuditService auditService) {
         this.paymentRepository = paymentRepository;
         this.invoiceRepository = invoiceRepository;
         this.customerRepository = customerRepository;
         this.creditNoteRepository = creditNoteRepository;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -39,6 +39,9 @@ public class PaymentService {
         payment.setReferenceNumber(reference);
         paymentRepository.save(payment);
 
+        auditService.log("PAYMENT_RECEIVED", String.format("Recorded Payment %s of %s from %s via %s",
+                reference, amount, customer.getName(), method));
+
         // Standard Payment: Only apply the new CASH amount.
         // Do NOT sweep credits automatically.
         distributeFunds(customerId, amount, payment);
@@ -46,6 +49,7 @@ public class PaymentService {
 
     @Transactional
     public void settleAccount(Long customerId, BigDecimal newCashInjection) {
+        Customer customer = customerRepository.findById(customerId).orElseThrow();
         // Redeeem Credits / Settle Account Logic
 
         // 1. Sweep Negative Invoices (Legacy/Overflow) to create new credits if any
@@ -53,19 +57,18 @@ public class PaymentService {
         for (Invoice invoice : allInvoices) {
             BigDecimal due = invoice.getBalanceDue();
             if (due.compareTo(BigDecimal.ZERO) < 0) {
-                // Convert negative balance to Credit Note?
-                // Current logic sets to zero and marks paid. Logic inside distribute funds will
-                // handle?
-                // No, we need to extract this value as "Available Funds" essentially.
-                // Ideally, we should create a Credit Note for this negative amount FIRST.
+                // Convert negative balance to Credit Note
                 CreditNote overflowNote = new CreditNote();
-                overflowNote.setCustomer(customerRepository.findById(customerId).orElseThrow());
+                overflowNote.setCustomer(customer);
                 overflowNote.setAmount(due.abs());
                 overflowNote.setRemainingAmount(due.abs());
                 overflowNote.setNoteDate(java.time.LocalDate.now());
                 overflowNote.setReason("Balance Adjustment for " + invoice.getInvoiceNumber());
                 overflowNote.setNoteNumber("ADJ-" + System.currentTimeMillis());
                 creditNoteRepository.save(overflowNote);
+
+                auditService.log("CREDIT_GENERATED", "Generated Adjustment Note " + overflowNote.getNoteNumber()
+                        + " from Negative Invoice " + invoice.getInvoiceNumber());
 
                 invoice.setBalanceDue(BigDecimal.ZERO);
                 invoice.setAmountPaid(invoice.getTotalAmount());
@@ -75,7 +78,6 @@ public class PaymentService {
         }
 
         // 2. Calculate Total Debt (Needed Funds)
-        // Refresh invoice list after sweep
         List<Invoice> unpaidInvoices = invoiceRepository.findByCustomerIdAndStatusNot(customerId, InvoiceStatus.PAID);
         BigDecimal totalDebt = unpaidInvoices.stream()
                 .map(Invoice::getBalanceDue)
@@ -113,6 +115,9 @@ public class PaymentService {
                 }
                 creditNoteRepository.save(note);
 
+                auditService.log("CREDIT_UTILIZED",
+                        String.format("Used %s from Note %s for Settlement", toTake, note.getNoteNumber()));
+
                 totalCreditTaken = totalCreditTaken.add(toTake);
             }
         }
@@ -120,32 +125,29 @@ public class PaymentService {
         // 5. Record Payment for Credit Usage
         if (totalCreditTaken.compareTo(BigDecimal.ZERO) > 0) {
             Payment creditPayment = new Payment();
-            creditPayment.setCustomer(customerRepository.findById(customerId).orElseThrow());
+            creditPayment.setCustomer(customer);
             creditPayment.setAmount(totalCreditTaken);
             creditPayment.setPaymentMethod(PaymentMethod.CREDIT_NOTE);
             creditPayment.setReferenceNumber("REDEMPTION-" + System.currentTimeMillis());
             paymentRepository.save(creditPayment);
-            // We do NOT link credit usage payment to "Change" notes usually, as it consumes
-            // exact amount.
+
+            auditService.log("SETTLEMENT_CREDIT", "Redeemed Total Credit: " + totalCreditTaken);
         }
 
-        // 6. Record Payment for Cash Injection (FIX: Missing in previous version)
+        // 6. Record Payment for Cash Injection
         Payment cashPayment = null;
         if (newCashInjection.compareTo(BigDecimal.ZERO) > 0) {
             cashPayment = new Payment();
-            cashPayment.setCustomer(customerRepository.findById(customerId).orElseThrow());
+            cashPayment.setCustomer(customer);
             cashPayment.setAmount(newCashInjection);
             cashPayment.setPaymentMethod(PaymentMethod.CASH); // Or generic
             cashPayment.setReferenceNumber("SETTLE-" + System.currentTimeMillis());
             paymentRepository.save(cashPayment);
+
+            auditService.log("SETTLEMENT_CASH", "Settlement Cash Injection: " + newCashInjection);
         }
 
-        // 7. Distribute Funds (Cash + Credit Taken)
-        // This will now match exactly the debt (or exceed it if Cash > Debt).
-        // We won't trigger the "Change Note" logic inside distributeFunds unless it's
-        // Cash Overpayment.
-        // If there's chaos (Overpayment), it comes from Cash Injection side.
-        // We link potential Overage Note to 'cashPayment'.
+        // 7. Distribute Funds
         distributeFunds(customerId, newCashInjection.add(totalCreditTaken), cashPayment);
     }
 
@@ -180,7 +182,6 @@ public class PaymentService {
         // Handle Overpayment (Excess Credit)
         if (remainingAmount.compareTo(BigDecimal.ZERO) > 0) {
             // Create a NEW Credit Note for the remaining balance.
-            // This acts as "Change" for the transaction.
             CreditNote unapplied = new CreditNote();
             unapplied.setCustomer(customerRepository.findById(customerId).orElseThrow());
             unapplied.setAmount(remainingAmount);
@@ -193,6 +194,9 @@ public class PaymentService {
                 unapplied.setGeneratedFromPayment(sourcePayment);
             }
             creditNoteRepository.save(unapplied);
+
+            auditService.log("CREDIT_GENERATED",
+                    "Overpayment/Surplus generated Note " + unapplied.getNoteNumber() + " of value " + remainingAmount);
         }
     }
 
@@ -209,21 +213,25 @@ public class PaymentService {
             // Is it used?
             // If remaining < amount, it's partially or fully used.
             if (note.getRemainingAmount().compareTo(note.getAmount()) < 0) {
-                throw new IllegalStateException("Cannot void payment. The resulting Credit Note ("
+                throw new IllegalStateException("Security Block: This payment generated Credit Note "
                         + note.getNoteNumber()
-                        + ") has already been partially or fully used. Please void the subsequent usage first.");
+                        + " which has already been spent. You must void the usages of that credit note first.");
             }
 
             // If unused, we void it (set to zero).
             note.setRemainingAmount(BigDecimal.ZERO);
             note.setReason(note.getReason() + " [VOIDED via Payment Reversal]");
-            // Note: We don't delete it, just zero it out so it's effectively useless.
             creditNoteRepository.save(note);
+
+            auditService.log("VOID_CREDIT", "Voided associated unused Credit Note: " + note.getNoteNumber());
         }
 
         // 1. Mark as Reversed
         payment.setReversed(true);
         paymentRepository.save(payment);
+
+        auditService.log("PAYMENT_VOIDED",
+                "Voided Payment " + payment.getReferenceNumber() + " of " + payment.getAmount());
 
         // 2. Handle Credti Note Reversal specifically
         if (payment.getPaymentMethod() == PaymentMethod.CREDIT_NOTE) {
@@ -237,29 +245,21 @@ public class PaymentService {
             reversalNote.setReason("Reversal of Redemption " + payment.getReferenceNumber());
             reversalNote.setNoteNumber("REV-" + System.currentTimeMillis());
             creditNoteRepository.save(reversalNote);
+
+            auditService.log("CREDIT_REFUND",
+                    "Refunded Credit via Note " + reversalNote.getNoteNumber() + " due to voided redemption");
         }
 
         // 3. Reverse the Financial Impact (Add Debt Back)
-        // We need to make Invoices "Unpaid" again equal to the amount.
-        // Strategy: LIFO (Reverse of FIFO). Unpay the most recent invoices first?
-        // Or unpay the ones that are Paid?
-        // Generally, we want to restore balances.
-
         BigDecimal amountToRestore = payment.getAmount();
         List<Invoice> invoices = invoiceRepository.findByCustomerIdAndStatusNot(payment.getCustomer().getId(),
                 InvoiceStatus.UNPAID); // Get Paid/Partial
-        // Sort DESC to unpay newest first (Audit trail usually pays oldest first, so
-        // voiding newest first makes sense? Or voiding specific?)
-        // Since we don't track link, LIFO is safest assumption.
+
         invoices.sort(Comparator.comparing(Invoice::getInvoiceDate).reversed());
 
         for (Invoice invoice : invoices) {
             if (amountToRestore.compareTo(BigDecimal.ZERO) <= 0)
                 break;
-
-            // How much debt can we put back on this invoice?
-            // Max debt = TotalAmount. Currently has BalanceDue.
-            // restore = min(amountToRestore, TotalAmount - BalanceDue)
 
             BigDecimal alreadyPaid = invoice.getTotalAmount().subtract(invoice.getBalanceDue());
             if (alreadyPaid.compareTo(BigDecimal.ZERO) <= 0)
@@ -275,7 +275,6 @@ public class PaymentService {
             } else if (invoice.getBalanceDue().compareTo(invoice.getTotalAmount()) >= 0) {
                 // Fully Unpaid
                 invoice.setStatus(InvoiceStatus.UNPAID);
-                // Fix precision if it exceeds?
                 if (invoice.getBalanceDue().compareTo(invoice.getTotalAmount()) > 0) {
                     invoice.setBalanceDue(invoice.getTotalAmount());
                 }
@@ -287,10 +286,9 @@ public class PaymentService {
             amountToRestore = amountToRestore.subtract(restore);
         }
 
-        // If amountToRestore > 0 still?
-        // Means we paid more than invoices existed? (Overpayment).
-        // If original payment created a "Overpayment Credit", that credit exists.
-        // We should probably void that credit too?
-        // This gets complex. For now, assuming standard flow, this covers 99% cases.
+        if (amountToRestore.compareTo(BigDecimal.ZERO) > 0) {
+            auditService.log("VOID_WARNING", "Voided payment " + payment.getReferenceNumber()
+                    + " exceeded restorable invoice debt by " + amountToRestore);
+        }
     }
 }

@@ -73,7 +73,7 @@ public class SalesController {
         com.mushroom.stockkeeper.model.Customer customer = null;
         String paymentMethod = null;
 
-        if ("RETAIL".equalsIgnoreCase(orderType)) {
+        if (com.mushroom.stockkeeper.model.CustomerType.RETAIL.name().equalsIgnoreCase(orderType)) {
             // RETAIL FLOW
             String name = (retailName != null && !retailName.trim().isEmpty()) ? retailName.trim() : "Walk-in Guest";
 

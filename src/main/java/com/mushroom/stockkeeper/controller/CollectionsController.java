@@ -18,7 +18,6 @@ import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/collections")
@@ -44,41 +43,43 @@ public class CollectionsController {
     @GetMapping
     public String index(Model model) {
         // Aging Report Logic: WHOLESALE Customers Only
-        // Replaced findByIsHiddenFalse() with strict findByType(WHOLESALE)
-        // AND ensure they are NOT hidden (to catch legacy data defaulted to Wholesale)
         List<Customer> customers = customerRepository
                 .findByTypeAndIsHiddenFalse(com.mushroom.stockkeeper.model.CustomerType.WHOLESALE);
 
+        // Fetch aggregated data efficiently
+        List<Object[]> balancesData = invoiceRepository.findWholesaleOutstandingBalances(); // [customerId, totalDue,
+                                                                                            // unpaidCount]
+        List<Object[]> creditsData = creditNoteRepository.findWholesaleRemainingCredits(); // [customerId, totalCredit]
+
+        // Map aggregated data
         Map<Long, BigDecimal> balances = new HashMap<>(); // Net Balance (Due - Credit)
+        // User requested Gross Balance (Due only).
+        // Logic below stored Total Due in 'balances' map.
+
         Map<Long, BigDecimal> credits = new HashMap<>(); // Just Credits
 
+        // Populate Maps from DB Data
+        for (Object[] row : balancesData) {
+            balances.put((Long) row[0], (BigDecimal) row[1]);
+        }
+        for (Object[] row : creditsData) {
+            credits.put((Long) row[0], (BigDecimal) row[1]);
+        }
+
+        // Fill gaps for customers with 0 balance/credit to ensure map keys exist if
+        // needed?
+        // Actually, the view likely does balances.get(c.id).
+        // Let's ensure strict alignment with customers list:
         for (Customer c : customers) {
-            // Dues
-            List<Invoice> unpaid = invoiceRepository.findByCustomerIdAndStatusNot(c.getId(), InvoiceStatus.PAID);
-            BigDecimal totalDue = unpaid.stream()
-                    .map(Invoice::getBalanceDue)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-            // Credits (Notes)
-            List<com.mushroom.stockkeeper.model.CreditNote> notes = creditNoteRepository.findAll().stream()
-                    .filter(n -> n.getCustomer().getId().equals(c.getId()))
-                    .filter(n -> n.getRemainingAmount() != null
-                            && n.getRemainingAmount().compareTo(BigDecimal.ZERO) > 0)
-                    .collect(Collectors.toList());
-
-            BigDecimal totalCredit = notes.stream()
-                    .map(com.mushroom.stockkeeper.model.CreditNote::getRemainingAmount)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-            credits.put(c.getId(), totalCredit);
-
-            // Net Balance for Display: Due - Credit
-            // Update: User requested Gross Balance (Due only). Credits shown separately.
-            balances.put(c.getId(), totalDue);
+            if (!balances.containsKey(c.getId()))
+                balances.put(c.getId(), BigDecimal.ZERO);
+            if (!credits.containsKey(c.getId()))
+                credits.put(c.getId(), BigDecimal.ZERO);
         }
 
         // Retail Sales Segment (Recent Invoices)
-        List<Invoice> retailInvoices = invoiceRepository.findTop20BySalesOrderOrderTypeOrderByInvoiceDateDesc("RETAIL");
+        List<Invoice> retailInvoices = invoiceRepository.findTop20BySalesOrderOrderTypeOrderByInvoiceDateDesc(
+                com.mushroom.stockkeeper.model.CustomerType.RETAIL.name());
 
         model.addAttribute("customers", customers);
         model.addAttribute("balances", balances);

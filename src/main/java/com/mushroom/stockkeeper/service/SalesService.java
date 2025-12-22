@@ -150,9 +150,13 @@ public class SalesService {
             total = total.add(unit.getSoldPrice());
         }
 
-        // Validate Validation for Hidden/Guest Customers
-        if (so.getCustomer().isHidden() && !isPaid) {
-            throw new Exception("Walk-in or Guest orders must be fully paid (Prepaid only).");
+        // Validate Validation for Hidden/Guest OR Retail Customers
+        boolean isRetail = so.getCustomer().getType() == CustomerType.RETAIL
+                || CustomerType.RETAIL.name().equalsIgnoreCase(so.getOrderType())
+                || so.getCustomer().isHidden();
+
+        if (isRetail && !isPaid) {
+            throw new Exception("Retail orders (Walk-in or Saved) must be fully paid immediately.");
         }
 
         // Validate Credit Limit
@@ -272,11 +276,23 @@ public class SalesService {
             refundNote.setCustomer(invoice.getCustomer());
             refundNote.setOriginalInvoice(invoice);
             refundNote.setAmount(invoice.getAmountPaid());
-            refundNote.setRemainingAmount(invoice.getAmountPaid());
             refundNote.setNoteDate(LocalDate.now());
             refundNote.setReason("Refund for Cancelled Order " + invoice.getInvoiceNumber());
             refundNote.setNoteNumber("RF-" + System.currentTimeMillis());
-            refundNote.setUsed(false);
+
+            // Auto-Refund logic for Retail
+            boolean isRetail = invoice.getCustomer().getType() == CustomerType.RETAIL
+                    || invoice.getCustomer().isHidden();
+
+            if (isRetail) {
+                refundNote.setUsed(true);
+                refundNote.setRemainingAmount(BigDecimal.ZERO);
+                refundNote.setReason(refundNote.getReason() + " (Cash Refund)");
+            } else {
+                refundNote.setUsed(false);
+                refundNote.setRemainingAmount(invoice.getAmountPaid());
+            }
+
             creditNoteRepository.save(refundNote);
 
             auditService.log("ISSUE_REFUND", "Refund Note " + refundNote.getNoteNumber() + " for Order " + orderId);

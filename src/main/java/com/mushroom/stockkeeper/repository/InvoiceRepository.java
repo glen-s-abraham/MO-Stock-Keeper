@@ -24,5 +24,11 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     @org.springframework.data.jpa.repository.Query("SELECT SUM(i.balanceDue) FROM Invoice i WHERE i.customer.id = :customerId AND i.status != 'CANCELLED'")
     java.math.BigDecimal sumOutstandingBalanceByCustomer(Long customerId);
 
+    @org.springframework.data.jpa.repository.Query("SELECT i.customer.id, SUM(i.balanceDue), COUNT(i) FROM Invoice i WHERE i.customer.type = 'WHOLESALE' AND i.status != 'CANCELLED' AND i.status != 'PAID' GROUP BY i.customer.id")
+    List<Object[]> findWholesaleOutstandingBalances(); // Returns [customerId, totalDue, countUnpaid]
+
+    @org.springframework.data.jpa.repository.Query("SELECT i.customer.id, i.status, COUNT(i) FROM Invoice i WHERE i.customer.type = 'WHOLESALE' GROUP BY i.customer.id, i.status")
+    List<Object[]> findWholesaleInvoiceCounts();
+
     List<Invoice> findTop20BySalesOrderOrderTypeOrderByInvoiceDateDesc(String orderType);
 }
