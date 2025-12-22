@@ -37,28 +37,73 @@ public class HarvestBatchController {
     }
 
     @GetMapping
-    public String list(@RequestParam(defaultValue = "active") String filter, Model model) {
+    public String list(@RequestParam(defaultValue = "active") String filter,
+            @RequestParam(required = false) Long productId,
+            @RequestParam(defaultValue = "false") boolean showAll,
+            Model model) {
+
+        // Mode 1: Product Selection (Default Landing)
+        if (productId == null && !showAll) {
+            model.addAttribute("products", productRepository.findAll());
+
+            // Fetch Stats
+            LocalDate now = LocalDate.now();
+            Map<Long, Long> activeCounts = batchRepository.countActiveBatchesGrouped(now).stream()
+                    .collect(Collectors.toMap(obj -> (Long) obj[0], obj -> (Long) obj[1]));
+
+            Map<Long, Long> expiredCounts = batchRepository.countExpiredBatchesGrouped(now).stream()
+                    .collect(Collectors.toMap(obj -> (Long) obj[0], obj -> (Long) obj[1]));
+
+            model.addAttribute("activeCounts", activeCounts);
+            model.addAttribute("expiredCounts", expiredCounts);
+
+            return "batches/products";
+        }
+
+        // Mode 2: Batch List (Filtered)
         LocalDate today = LocalDate.now();
         List<HarvestBatch> batches;
 
-        switch (filter) {
-            case "expired":
-                batches = batchRepository.findByExpiryDateLessThan(today);
-                break;
-            case "all":
-                batches = batchRepository.findAll();
-                break;
-            case "active":
-            default:
-                batches = batchRepository.findByExpiryDateGreaterThanEqualOrExpiryDateIsNull(today);
-                break;
+        if (productId != null) {
+            // Filter by Product + Status
+            Product product = productRepository.findById(productId)
+                    .orElseThrow(() -> new IllegalArgumentException("Invalid product"));
+            model.addAttribute("selectedProduct", product);
+
+            switch (filter) {
+                case "expired":
+                    batches = batchRepository.findExpiredByProduct(productId, today);
+                    break;
+                case "all":
+                    batches = batchRepository.findByProductId(productId);
+                    break;
+                case "active":
+                default:
+                    batches = batchRepository.findActiveByProduct(productId, today);
+                    break;
+            }
+        } else {
+            // Show All (Mixed) + Status
+            switch (filter) {
+                case "expired":
+                    batches = batchRepository.findByExpiryDateLessThan(today);
+                    break;
+                case "all":
+                    batches = batchRepository.findAll();
+                    break;
+                case "active":
+                default:
+                    batches = batchRepository.findByExpiryDateGreaterThanEqualOrExpiryDateIsNull(today);
+                    break;
+            }
         }
 
-        // Simple In-Memory Sort for now (or move sort to repo if performance needed)
+        // Sort DESC
         batches.sort(java.util.Comparator.comparing(HarvestBatch::getBatchDate).reversed());
 
         model.addAttribute("batches", batches);
         model.addAttribute("currentFilter", filter);
+        model.addAttribute("currentProductId", productId);
         return "batches/list";
     }
 
