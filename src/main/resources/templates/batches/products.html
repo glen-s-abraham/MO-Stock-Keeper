@@ -1,8 +1,11 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layout/base}">
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+    layout:decorate="~{layout/base}">
+
 <head>
     <title>Select Product - Batches</title>
 </head>
+
 <body>
     <div layout:fragment="content">
         <div class="d-flex justify-content-between align-items-center mb-4">
@@ -11,10 +14,11 @@
                 <p class="text-muted mb-0">Select a product to view its batch history.</p>
             </div>
             <div class="d-flex gap-2">
-                 <a th:href="@{/batches(filter='active', productId=null, showAll=true)}" class="btn btn-outline-light">
+                <a th:href="@{/batches(filter='active', productId=null, showAll=true)}" class="btn btn-outline-light">
                     <i class="bi bi-list-ul me-2"></i>Show All Batches
-                 </a>
-                 <a th:href="@{/batches/create}" class="btn btn-success shadow-lg"><i class="bi bi-box-seam me-2"></i>New Batch</a>
+                </a>
+                <a th:href="@{/batches/create}" class="btn btn-success shadow-lg"><i class="bi bi-box-seam me-2"></i>New
+                    Batch</a>
             </div>
         </div>
 
@@ -22,30 +26,32 @@
             <div class="col-12 col-md-6 col-lg-4" th:each="p : ${products}">
                 <a th:href="@{/batches(productId=${p.id})}" class="text-decoration-none">
                     <div class="card h-100 border-hover-primary text-center p-4">
-                         <div class="mb-3">
-                             <div class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-10 text-primary rounded-circle" style="width: 64px; height: 64px;">
-                                 <i class="bi bi-box-seam fs-2"></i>
-                             </div>
-                         </div>
-                         <h5 class="card-title text-white mb-3" th:text="${p.name}">Product Name</h5>
-                         
-                         <div class="d-flex justify-content-center gap-2 mb-2">
-                             <span class="badge bg-success bg-opacity-10 text-success border border-success">
-                                 <i class="bi bi-check-circle me-1"></i>
-                                 <span th:text="${activeCounts.getOrDefault(p.id, 0L)}">0</span> Active
-                             </span>
-                             <span th:if="${expiredCounts.getOrDefault(p.id, 0L) > 0}" class="badge bg-danger bg-opacity-10 text-danger border border-danger">
-                                 <i class="bi bi-exclamation-circle me-1"></i>
-                                 <span th:text="${expiredCounts.get(p.id)}">0</span> Expired
-                             </span>
-                         </div>
-                         
-                         <p class="text-muted small mb-0">Click to view details</p>
+                        <div class="mb-3">
+                            <div class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-10 text-primary rounded-circle"
+                                style="width: 64px; height: 64px;">
+                                <i class="bi bi-box-seam fs-2"></i>
+                            </div>
+                        </div>
+                        <h5 class="card-title text-dark fw-bold mb-3" th:text="${p.name}">Product Name</h5>
+
+                        <div class="d-flex justify-content-center gap-2 mb-2">
+                            <span class="badge bg-success bg-opacity-10 text-success border border-success">
+                                <i class="bi bi-check-circle me-1"></i>
+                                <span th:text="${activeCounts.getOrDefault(p.id, 0L)}">0</span> Active
+                            </span>
+                            <span th:if="${expiredCounts.getOrDefault(p.id, 0L) > 0}"
+                                class="badge bg-danger bg-opacity-10 text-danger border border-danger">
+                                <i class="bi bi-exclamation-circle me-1"></i>
+                                <span th:text="${expiredCounts.get(p.id)}">0</span> Expired
+                            </span>
+                        </div>
+
+                        <p class="text-muted small mb-0">Click to view details</p>
                     </div>
                 </a>
             </div>
-            
-             <div class="col-12" th:if="${#lists.isEmpty(products)}">
+
+            <div class="col-12" th:if="${#lists.isEmpty(products)}">
                 <div class="text-center py-5 text-muted">
                     <i class="bi bi-box fs-1 d-block mb-3 opacity-25"></i>
                     No products found. Create a product first.
@@ -54,4 +60,5 @@
         </div>
     </div>
 </body>
+
 </html>

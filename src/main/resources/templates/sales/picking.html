@@ -1,8 +1,11 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layout/base}">
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+    layout:decorate="~{layout/base}">
+
 <head>
     <title>Picking - MO Stock</title>
 </head>
+
 <body>
     <div layout:fragment="content">
         <!-- Flash Messages -->
@@ -18,58 +21,67 @@
         <!-- Header -->
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
-                 <h5 class="mb-0" th:text="${order.orderNumber}">SO-123</h5>
-                 <small th:text="${order.customer.name}" class="text-muted">Customer</small>
+                <h5 class="mb-0" th:text="${order.orderNumber}">SO-123</h5>
+                <small th:text="${order.customer.name}" class="text-muted">Customer</small>
             </div>
             <div class="d-flex gap-2">
-                <a th:if="${order.status.name() == 'INVOICED'}" th:href="@{/sales/{id}/print(id=${order.id})}" class="btn btn-outline-primary btn-sm shadow-sm">
+                <a th:if="${order.status.name() == 'INVOICED'}" th:href="@{/sales/{id}/print(id=${order.id})}"
+                    class="btn btn-outline-primary btn-sm shadow-sm">
                     <i class="bi bi-printer me-1"></i> Print
                 </a>
-                
-                <form th:if="${order.status.name() == 'INVOICED' or order.status.name() == 'DRAFT'}" th:action="@{/sales/{id}/cancel(id=${order.id})}" method="post" onsubmit="return confirm('Are you sure you want to CANCEL/VOID this order? Allocations will be released.')">
-                    <button type="submit" class="btn btn-outline-danger btn-sm shadow-sm" th:text="${order.status.name() == 'INVOICED'} ? 'Cancel Invoice' : 'Void Draft'">
-                         <i class="bi bi-x-circle me-1"></i> Cancel
+
+                <form th:if="${order.status.name() == 'INVOICED' or order.status.name() == 'DRAFT'}"
+                    th:action="@{/sales/{id}/cancel(id=${order.id})}" method="post"
+                    onsubmit="return confirm('Are you sure you want to CANCEL/VOID this order? Allocations will be released.')">
+                    <button type="submit" class="btn btn-outline-danger btn-sm shadow-sm"
+                        th:text="${order.status.name() == 'INVOICED'} ? 'Cancel Invoice' : 'Void Draft'">
+                        <i class="bi bi-x-circle me-1"></i> Cancel
                     </button>
                 </form>
 
-                <span class="badge rounded-pill px-3 py-2 align-self-center" 
-                      th:classappend="${order.status.name() == 'INVOICED'} ? 'bg-success text-white' : (${order.status.name() == 'CANCELLED'} ? 'bg-danger text-white' : 'bg-warning text-dark')" 
-                      th:text="${order.status}">DRAFT</span>
+                <span class="badge rounded-pill px-3 py-2 align-self-center"
+                    th:classappend="${order.status.name() == 'INVOICED'} ? 'bg-success text-white' : (${order.status.name() == 'CANCELLED'} ? 'bg-danger text-white' : 'bg-warning text-dark')"
+                    th:text="${order.status}">DRAFT</span>
             </div>
         </div>
 
         <!-- Manual Entry Section -->
-        <div class="card mb-4 shadow-sm">
+        <div id="manualEntrySection" class="card mb-4 shadow-sm">
             <div class="card-body">
                 <label class="form-label fw-bold">Manual Item Entry</label>
                 <div class="row g-2 mb-3">
-                     <!-- Product Filter -->
-                     <div class="col-md-3">
-                        <select id="productFilter" class="form-select" placeholder="Filter by Product..." autocomplete="off">
+                    <!-- Product Filter -->
+                    <div class="col-md-3">
+                        <select id="productFilter" class="form-select" placeholder="Filter by Product..."
+                            autocomplete="off">
                             <option value="">All Products</option>
                         </select>
-                     </div>
-                     <!-- Batch Filter -->
-                     <div class="col-md-3">
-                        <select id="batchFilter" class="form-select" placeholder="Filter by Batch (Optional)..." autocomplete="off">
+                    </div>
+                    <!-- Batch Filter -->
+                    <div class="col-md-3">
+                        <select id="batchFilter" class="form-select" placeholder="Filter by Batch (Optional)..."
+                            autocomplete="off">
                             <option value="">All Batches</option>
                         </select>
-                     </div>
-                     <!-- Unit Select -->
-                     <div class="col-md-6">
+                    </div>
+                    <!-- Unit Select -->
+                    <div class="col-md-6">
                         <div class="input-group">
-                            <select id="unitSelect" class="form-select" placeholder="Search Unit by UUID..." autocomplete="off">
+                            <select id="unitSelect" class="form-select" placeholder="Search Unit by UUID..."
+                                autocomplete="off">
                                 <option value="">Select Unit...</option>
                             </select>
 
-                            <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#manualInputModal">
+                            <button class="btn btn-outline-secondary" data-bs-toggle="modal"
+                                data-bs-target="#manualInputModal">
                                 <i class="bi bi-list-ul"></i> Batch
                             </button>
-                            <button class="btn btn-link text-decoration-none" onclick="showPickingModal()" title="Open Picker Wizard">
+                            <button class="btn btn-link text-decoration-none" onclick="showPickingModal()"
+                                title="Open Picker Wizard">
                                 <i class="bi bi-magic"></i>
                             </button>
                         </div>
-                     </div>
+                    </div>
                 </div>
                 <div id="manualFeedback" class="form-text text-success fw-bold" style="display:none;"></div>
             </div>
@@ -80,29 +92,37 @@
             <div class="card mb-3 shadow-sm overflow-hidden border">
                 <div class="card-body p-0 text-center position-relative">
                     <div id="reader" style="width: 100%; min-height: 250px; background-color: #000;"></div>
-                    <div id="scanResult" class="position-absolute bottom-0 w-100 p-2 text-success fw-bold bg-white bg-opacity-75" style="display:none;"></div>
-                    <div id="scanError" class="position-absolute top-0 w-100 p-2 text-danger fw-bold bg-white bg-opacity-75" style="display:none;"></div>
+                    <div id="scanResult"
+                        class="position-absolute bottom-0 w-100 p-2 text-success fw-bold bg-white bg-opacity-75"
+                        style="display:none;"></div>
+                    <div id="scanError"
+                        class="position-absolute top-0 w-100 p-2 text-danger fw-bold bg-white bg-opacity-75"
+                        style="display:none;"></div>
                 </div>
             </div>
-            
+
             <button class="btn btn-primary w-100 shadow-sm py-3" id="startScanBtn" onclick="startScanner()">
-                 <i class="bi bi-camera me-2"></i> Start Camera
+                <i class="bi bi-camera me-2"></i> Start Camera
             </button>
         </div>
 
         <!-- Allocated Items List -->
-        <h6 class="mt-4 text-muted small text-uppercase fw-bold mb-3">Allocated Items (<span th:text="${order.allocatedUnits.size()}">0</span>)</h6>
+        <h6 class="mt-4 text-muted small text-uppercase fw-bold mb-3">Allocated Items (<span
+                th:text="${order.allocatedUnits.size()}">0</span>)</h6>
         <div class="card shadow-sm mb-4">
             <div class="card-body p-0">
                 <div class="list-group list-group-flush">
-                    <div th:each="u : ${order.allocatedUnits}" class="list-group-item d-flex justify-content-between align-items-center py-3">
+                    <div th:each="u : ${order.allocatedUnits}"
+                        class="list-group-item d-flex justify-content-between align-items-center py-3">
                         <div>
                             <strong th:text="${u.batch.product.name}" class="text-dark">Product</strong><br>
                             <small th:text="${u.uuid}" class="text-muted font-monospace">UUID</small>
                         </div>
-                        <form th:if="${order.status.name() == 'DRAFT'}" th:action="@{/sales/{id}/remove(id=${order.id})}" method="post" style="margin:0;">
-                            <input type="hidden" name="unitId" th:value="${u.id}"/>
-                            <button type="submit" class="btn btn-sm btn-outline-danger border-0"><i class="bi bi-trash"></i></button>
+                        <form th:if="${order.status.name() == 'DRAFT'}"
+                            th:action="@{/sales/{id}/remove(id=${order.id})}" method="post" style="margin:0;">
+                            <input type="hidden" name="unitId" th:value="${u.id}" />
+                            <button type="submit" class="btn btn-sm btn-outline-danger border-0"><i
+                                    class="bi bi-trash"></i></button>
                         </form>
                     </div>
                     <div th:if="${order.allocatedUnits.isEmpty()}" class="text-center text-muted py-5">
@@ -114,16 +134,18 @@
         </div>
 
         <!-- Pricing & Summary -->
-        <div th:if="${(order.status.name() == 'DRAFT' or order.status.name() == 'INVOICED') and !order.allocatedUnits.isEmpty()}" class="mb-4">
-             <div class="card shadow-sm">
-                 <div class="card-header bg-light fw-bold">Order Summary & Pricing</div>
-                 <div class="card-body p-0">
+        <div th:if="${(order.status.name() == 'DRAFT' or order.status.name() == 'INVOICED') and !order.allocatedUnits.isEmpty()}"
+            class="mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light fw-bold">Order Summary & Pricing</div>
+                <div class="card-body p-0">
                     <table class="table table-borderless mb-0">
                         <thead class="table-light">
                             <tr>
                                 <th class="ps-3">Product</th>
                                 <th class="text-center">Qty</th>
-                                <th class="text-end" style="width: 150px;">Unit Price (<span th:text="${currencySymbol}"></span>)</th>
+                                <th class="text-end" style="width: 150px;">Unit Price (<span
+                                        th:text="${currencySymbol}"></span>)</th>
                                 <th class="text-end pe-3">Subtotal</th>
                             </tr>
                         </thead>
@@ -133,36 +155,39 @@
                                 <td class="ps-3 fw-bold" th:text="${row.productName}">Product Name</td>
                                 <td class="text-center" th:text="${row.quantity}">5</td>
                                 <td class="text-end">
-                                    <span th:if="${order.status.name() == 'INVOICED'}" th:text="${row.unitPrice}">10.00</span>
-                                    <input th:if="${order.status.name() == 'DRAFT'}" 
-                                           type="number" class="form-control form-control-sm text-end product-price-input" 
-                                           step="0.01" placeholder="0.00"
-                                           th:data-product-id="${row.productId}"
-                                           th:data-qty="${row.quantity}"
-                                           th:value="${row.unitPrice}"
-                                           onchange="updateProductPrice(this)">
+                                    <span th:if="${order.status.name() == 'INVOICED'}"
+                                        th:text="${row.unitPrice}">10.00</span>
+                                    <input th:if="${order.status.name() == 'DRAFT'}" type="number"
+                                        class="form-control form-control-sm text-end product-price-input" step="0.01"
+                                        placeholder="0.00" th:data-product-id="${row.productId}"
+                                        th:data-qty="${row.quantity}" th:value="${row.unitPrice}"
+                                        onchange="updateProductPrice(this)">
                                 </td>
-                                <td class="text-end pe-3 fw-bold font-monospace product-subtotal" th:text="${row.subtotal}">0.00</td>
+                                <td class="text-end pe-3 fw-bold font-monospace product-subtotal"
+                                    th:text="${row.subtotal}">0.00</td>
                             </tr>
                         </tbody>
                         <tfoot class="table-light">
                             <tr>
                                 <td colspan="3" class="text-end fw-bold">Total Invoice Value:</td>
-                                <td class="text-end pe-3 fw-bold fs-5 text-success" id="grandTotal" th:text="${currencySymbol} + ${grandTotal}">0.00</td>
+                                <td class="text-end pe-3 fw-bold fs-5 text-success" id="grandTotal"
+                                    th:text="${currencySymbol} + ${grandTotal}">0.00</td>
                             </tr>
                         </tfoot>
                     </table>
-                 </div>
-             </div>
+                </div>
+            </div>
         </div>
 
         <!-- Finalize Button -->
         <div th:if="${order.status.name() == 'DRAFT' and !order.allocatedUnits.isEmpty()}" class="d-grid pb-5">
-            <form th:action="@{/sales/{id}/finalize(id=${order.id})}" method="post" onsubmit="return validateFinalize()">
-                
+            <form th:action="@{/sales/{id}/finalize(id=${order.id})}" method="post"
+                onsubmit="return validateFinalize()">
+
                 <div class="card p-3 mb-3 bg-light border">
                     <div class="form-check form-switch mb-2">
-                        <input class="form-check-input" type="checkbox" id="markPaidCheck" name="isPaid" onchange="document.getElementById('paymentMethodDiv').style.display = this.checked ? 'block' : 'none'">
+                        <input class="form-check-input" type="checkbox" id="markPaidCheck" name="isPaid"
+                            onchange="document.getElementById('paymentMethodDiv').style.display = this.checked ? 'block' : 'none'">
                         <label class="form-check-label fw-bold" for="markPaidCheck">Mark as Paid (Retail Bill)</label>
                     </div>
                     <div id="paymentMethodDiv" style="display:none;">
@@ -181,7 +206,7 @@
                 </button>
             </form>
         </div>
-        
+
         <!-- Manual / Batch Input Modal -->
         <div class="modal fade" id="manualInputModal" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
@@ -193,18 +218,20 @@
                     <div class="modal-body">
                         <div class="mb-3">
                             <label class="form-label text-muted">Scan or Enter UUIDs (One per line)</label>
-                            <textarea class="form-control font-monospace" id="manualInput" rows="5" placeholder="U:UUID1&#10;U:UUID2&#10;..."></textarea>
+                            <textarea class="form-control font-monospace" id="manualInput" rows="5"
+                                placeholder="U:UUID1&#10;U:UUID2&#10;..."></textarea>
                             <div class="form-text">Enter UUIDs directly.</div>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="button" class="btn btn-primary" onclick="handleManualInput()">Allocate Items</button>
+                        <button type="button" class="btn btn-primary" onclick="handleManualInput()">Allocate
+                            Items</button>
                     </div>
                 </div>
             </div>
         </div>
-        
+
         <!-- Start Picking Mode Modal -->
         <div class="modal fade" id="startPickingModal" tabindex="-1" data-bs-backdrop="static">
             <div class="modal-dialog modal-dialog-centered">
@@ -231,9 +258,9 @@
         </div>
 
     </div>
-    
+
     </div>
-    
+
     <th:block layout:fragment="scripts">
         <script th:inline="javascript">
             /*<![CDATA[*/
@@ -243,261 +270,272 @@
             const isOrderEmpty = /*[[${order.allocatedUnits.isEmpty()}]]*/ true;
             const isGuest = /*[[${order.customer.hidden}]]*/ false;
             const currencySymbol = /*[[${currencySymbol}]]*/ '₹';
-            
+
             // Master List for Filtering
             const allUnits = [
                 /*[# th:each="u : ${availableUnits}"]*/
-                { 
-                    id: /*[[${u.uuid}]]*/ '', 
+                {
+                    id: /*[[${u.uuid}]]*/ '',
                     batch: /*[[${u.batch != null ? u.batch.batchCode : ''}]]*/ '',
-                    product: /*[[${u.batch != null ? u.batch.product.name : ''}]]*/ '', 
-                    text: /*[[${u.uuid} + ' - ' + ${u.batch != null ? u.batch.product.name : 'Unknown'}]]*/ '' 
+                    product: /*[[${u.batch != null ? u.batch.product.name : ''}]]*/ '',
+                    text: /*[[${u.uuid} + ' - ' + ${u.batch != null ? u.batch.product.name : 'Unknown'}]]*/ ''
                 },
                 /*[/]*/
             ];
-            
+
             const batchList = [
                 /*[# th:each="b : ${availableBatches}"]*/
-                { 
-                    id: /*[[${b.batchCode}]]*/ '', 
+                {
+                    id: /*[[${b.batchCode}]]*/ '',
                     product: /*[[${b.product != null ? b.product.name : ''}]]*/ '',
-                    text: /*[[${b.batchCode} + ' (' + (${b.product != null ? b.product.name : 'Unknown'}) + ')' ]]*/ '' 
+                    text: /*[[${b.batchCode} + ' (' + (${b.product != null ? b.product.name : 'Unknown'}) + ')' ]]*/ ''
                 },
                 /*[/]*/
             ];
             /*]]>*/
 
             let html5QrcodeScanner = null;
-            
-            document.addEventListener('DOMContentLoaded', function() {
+
+            document.addEventListener('DOMContentLoaded', function () {
                 console.log("Picking Page Loaded. Initializing Select2...");
-                if (isOrderEmpty) {
-                     var myModal = new bootstrap.Modal(document.getElementById('startPickingModal'));
-                     myModal.show();
+
+                // 1. Check for persisted mode
+                const activeMode = sessionStorage.getItem('pickingMode'); // 'scan' or 'manual'
+
+                if (activeMode === 'scan') {
+                    // Auto-start scanner
+                    switchToScanMode();
+                } else if (activeMode === 'manual') {
+                    switchToManualMode();
+                } else {
+                    // First time load
+                    if (isOrderEmpty) {
+                        var myModal = new bootstrap.Modal(document.getElementById('startPickingModal'));
+                        myModal.show();
+                    } else {
+                        // Default to manual if some items exist but no specific mode set
+                        switchToManualMode();
+                    }
                 }
+
                 recalcTotals();
-                
+
                 try {
                     initSelects();
-                } catch(e) {
+                } catch (e) {
                     console.error("Critical Error initializing Select2:", e);
                 }
-                
-                // Check for camera safely
-                if (typeof Html5Qrcode !== 'undefined') {
-                    Html5Qrcode.getCameras().then(devices => {
-                        if (devices && devices.length) {
-                            document.getElementById('cameraSection').style.display = 'block';
-                        }
-                    }).catch(err => {
-                       console.log("No camera permissions or devices", err);
-                    });
-                } else {
-                    console.warn("Html5Qrcode library not loaded. Camera features disabled.");
-                }
             });
+
+            function switchToScanMode() {
+                console.log("Switching to Scan Mode");
+                sessionStorage.setItem('pickingMode', 'scan');
+
+                const camSec = document.getElementById('cameraSection');
+                const manSec = document.getElementById('manualEntrySection');
+
+                // 1. UI Updates FIRST (Fail-safe)
+                if (manSec) {
+                    manSec.style.display = 'none';
+                    manSec.style.setProperty('display', 'none', 'important');
+                }
+
+                if (camSec) {
+                    camSec.style.display = 'block';
+                    camSec.style.setProperty('display', 'block', 'important');
+
+                    // Button logic (Safe)
+                    try {
+                        if (!document.getElementById('switchToManualBtn')) {
+                            const btn = document.createElement('button');
+                            btn.id = 'switchToManualBtn';
+                            btn.className = 'btn btn-outline-secondary w-100 mt-2 mb-3';
+                            btn.innerHTML = '<i class="bi bi-keyboard"></i> Switch to Manual Entry';
+                            btn.onclick = function () {
+                                switchToManualMode(); // stopScanner called inside
+                            };
+                            camSec.appendChild(btn);
+                        }
+                    } catch (e) { console.error("Error adding manual btn", e); }
+                }
+
+                // 2. Scanner Logic
+                if (!html5QrcodeScanner) startScanner();
+            }
+
+            function switchToManualMode() {
+                console.log("Switching to Manual Mode");
+                sessionStorage.setItem('pickingMode', 'manual');
+
+                const camSec = document.getElementById('cameraSection');
+                const manSec = document.getElementById('manualEntrySection');
+
+                // 1. UI Updates FIRST (Fail-safe)
+                if (camSec) {
+                    camSec.style.display = 'none';
+                    camSec.style.setProperty('display', 'none', 'important');
+                }
+
+                if (manSec) {
+                    manSec.style.display = 'block';
+                    manSec.style.setProperty('display', 'block', 'important');
+
+                    // Button logic (Safe)
+                    try {
+                        if (!document.getElementById('switchToScanBtn')) {
+                            const label = manSec.querySelector('.form-label');
+                            if (!document.getElementById('manualToggleWrapper')) {
+                                const btnDiv = document.createElement('div');
+                                btnDiv.id = 'manualToggleWrapper';
+                                btnDiv.className = 'd-flex justify-content-end mb-2';
+                                btnDiv.innerHTML = '<button id="switchToScanBtn" class="btn btn-outline-primary btn-sm"><i class="bi bi-camera"></i> Switch to Scanner</button>';
+                                if (label && label.parentNode) {
+                                    label.parentNode.insertBefore(btnDiv, label);
+                                } else {
+                                    manSec.querySelector('.card-body').prepend(btnDiv);
+                                }
+
+                                document.getElementById('switchToScanBtn').onclick = switchToScanMode;
+                            }
+                        }
+                    } catch (e) { console.error("Error adding scan btn", e); }
+                } else {
+                    console.error("Manual Entry Section NOT FOUND");
+                }
+
+                // 3. Stop Scanner checks
+                stopScanner();
+            }
 
             function initSelects() {
                 // 1. Populate Product Filter from unique products in batchList
                 const uniqueProducts = [...new Set(batchList.map(b => b.product))].filter(Boolean).sort();
                 const productOptions = uniqueProducts.map(p => ({ id: p, text: p }));
-                
+
                 // Add "All Products" option
                 productOptions.unshift({ id: '', text: 'All Products' });
 
-                $('#productFilter').select2({
-                    theme: 'bootstrap-5',
-                    data: productOptions,
-                    placeholder: 'Filter by Product...'
-                });
+                $('#productFilter').select2({ theme: 'bootstrap-5', data: productOptions, placeholder: 'Filter by Product...' });
+                $('#batchFilter').select2({ theme: 'bootstrap-5', data: [{ id: '', text: 'All Batches' }, ...batchList], placeholder: 'Filter by Batch...' });
+                $('#unitSelect').select2({ theme: 'bootstrap-5', data: allUnits, placeholder: 'Select Unit...', allowClear: true });
 
-                // 2. Batch Filter (Init with All)
-                $('#batchFilter').select2({
-                    theme: 'bootstrap-5',
-                    data: [{id: '', text: 'All Batches'}, ...batchList],
-                    placeholder: 'Filter by Batch...'
-                });
-                
-                // 3. Unit Select (Init with All)
-                $('#unitSelect').select2({
-                    theme: 'bootstrap-5',
-                    data: allUnits,
-                    placeholder: 'Select Unit...',
-                    allowClear: true
-                });
+                // Events
+                $('#productFilter').on('select2:select', function (e) { updateBatchFilter(e.params.data.id); });
+                $('#productFilter').on('change', function () { if (!$(this).val()) updateBatchFilter(''); });
+                $('#batchFilter').on('select2:select', function (e) { updateUnitFilter(e.params.data.id, $('#productFilter').val()); });
+                $('#batchFilter').on('change', function () { if (!$(this).val()) updateUnitFilter('', $('#productFilter').val()); });
+                $('#unitSelect').on('select2:select', function (e) { addFromSelect(); });
 
-                // --- Events ---
-
-                // Product Change -> Filter Batches
-                $('#productFilter').on('select2:select', function (e) {
-                    const prod = e.params.data.id;
-                    updateBatchFilter(prod);
-                });
-                $('#productFilter').on('change', function() { // Handle clear/manual change
-                     if (!$(this).val()) updateBatchFilter('');
-                });
-
-                // Batch Change -> Filter Units
-                $('#batchFilter').on('select2:select', function (e) {
-                    const batchCode = e.params.data.id;
-                    updateUnitFilter(batchCode, $('#productFilter').val());
-                });
-                $('#batchFilter').on('change', function() {
-                     if (!$(this).val()) updateUnitFilter('', $('#productFilter').val());
-                });
-
-                // Unit Selected -> Auto Add
-                $('#unitSelect').on('select2:select', function (e) {
-                     addFromSelect();
-                });
-
-                // --- Restore State if Reloaded ---
+                // Restore State
                 const savedProd = sessionStorage.getItem('picking_prod');
                 const savedBatch = sessionStorage.getItem('picking_batch');
-
                 if (savedProd) {
                     $('#productFilter').val(savedProd).trigger('change.select2');
-                    // Manually trigger cascade since change event might be async or finicky
                     updateBatchFilter(savedProd);
-                    
                     if (savedBatch) {
                         $('#batchFilter').val(savedBatch).trigger('change.select2');
                         updateUnitFilter(savedBatch, savedProd);
                     }
-                    
-                    // Clear state to avoid sticky filters on fresh nav
                     sessionStorage.removeItem('picking_prod');
                     sessionStorage.removeItem('picking_batch');
                 }
             }
 
             function updateBatchFilter(selectedProduct) {
-                console.log("Updating Batches for product:", selectedProduct);
-                
                 let filteredBatches = batchList;
-                if (selectedProduct) {
-                    filteredBatches = batchList.filter(b => b.product === selectedProduct);
-                }
+                if (selectedProduct) filteredBatches = batchList.filter(b => b.product === selectedProduct);
 
-                // Destroy and Re-init Batch Select
                 let $batchSelect = $('#batchFilter');
-                $batchSelect.empty();
-                $batchSelect.append('<option value="">All Batches</option>');
-
-                $batchSelect.select2({
-                    theme: 'bootstrap-5',
-                    data: filteredBatches,
-                    placeholder: 'Filter by Batch...'
-                });
-                
-                // Reset unit filter too, as batches changed
+                $batchSelect.empty().append('<option value="">All Batches</option>');
+                $batchSelect.select2({ theme: 'bootstrap-5', data: filteredBatches, placeholder: 'Filter by Batch...' });
                 updateUnitFilter('', selectedProduct);
             }
 
             function updateUnitFilter(batchCode, productFilter) {
-                console.log("Filtering Units. Batch:", batchCode, "Product:", productFilter);
-                
                 let filteredData = allUnits;
+                if (batchCode) filteredData = allUnits.filter(u => u.batch === batchCode);
+                else if (productFilter) filteredData = allUnits.filter(u => u.product === productFilter);
 
-                if (batchCode) {
-                    // Specific batch selected -> Strict filter
-                    filteredData = allUnits.filter(u => u.batch === batchCode);
-                } else if (productFilter) {
-                    // No batch selected, but Product selected -> Show all units of that product
-                    filteredData = allUnits.filter(u => u.product === productFilter);
-                }
-                // else: Show All Units (default)
-
-                // Destroy and Re-init Unit Select
                 let $unitSelect = $('#unitSelect');
-                $unitSelect.empty(); 
-                $unitSelect.append('<option></option>');
-
-                $unitSelect.select2({
-                    theme: 'bootstrap-5',
-                    data: filteredData,
-                    placeholder: 'Select Unit...',
-                    allowClear: true
-                });
+                $unitSelect.empty().append('<option></option>');
+                $unitSelect.select2({ theme: 'bootstrap-5', data: filteredData, placeholder: 'Select Unit...', allowClear: true });
             }
 
             function triggerStartScan() {
                 var modalEl = document.getElementById('startPickingModal');
                 var modal = bootstrap.Modal.getInstance(modalEl);
                 modal.hide();
-                startScanner();
+                switchToScanMode();
             }
-            
+
             function triggerManualEntry() {
                 var modalEl = document.getElementById('startPickingModal');
                 var modal = bootstrap.Modal.getInstance(modalEl);
                 modal.hide();
-                // Focus on Select2
-                $('#unitSelect').select2('open');
-            }
-            
-            window.showPickingModal = function() {
-                 var myModal = new bootstrap.Modal(document.getElementById('startPickingModal'));
-                 myModal.show();
+                switchToManualMode();
+                setTimeout(() => $('#unitSelect').select2('open'), 300);
             }
 
-            // ... (HTML5QRCode Logic remains same but check startScanner integration) ...
+            window.showPickingModal = function () {
+                var myModal = new bootstrap.Modal(document.getElementById('startPickingModal'));
+                myModal.show();
+            }
 
             function startScanner() {
-                if (html5QrcodeScanner) return; 
-                
-                if (typeof Html5Qrcode === 'undefined') {
-                    alert("Scanner library not loaded.");
-                    return;
-                }
+                document.getElementById('cameraSection').style.display = 'block';
+                if (html5QrcodeScanner) return;
+                if (typeof Html5Qrcode === 'undefined') { alert("Scanner library not loaded."); return; }
 
                 html5QrcodeScanner = new Html5Qrcode("reader");
                 const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-                
+
                 html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess)
-                .catch(err => {
-                    console.error(err);
-                    document.getElementById('scanError').innerText = "Camera access failed.";
-                });
-                
+                    .catch(err => {
+                        console.error(err);
+                        document.getElementById('scanError').innerText = "Camera access failed: " + err;
+                        document.getElementById('scanError').style.display = 'block';
+                    });
+
                 document.getElementById('startScanBtn').classList.add('d-none');
             }
-            
+
+            function stopScanner() {
+                if (html5QrcodeScanner) {
+                    html5QrcodeScanner.stop().then(() => {
+                        html5QrcodeScanner.clear();
+                        html5QrcodeScanner = null;
+                        document.getElementById('startScanBtn').classList.remove('d-none');
+                    }).catch(err => console.error("Failed to stop scanner", err));
+                }
+            }
+
             function onScanSuccess(decodedText, decodedResult) {
                 const resDiv = document.getElementById('scanResult');
                 resDiv.style.display = 'block';
-                resDiv.innerText = "Scanned: " + decodedText; 
-                
-                allocateItem(decodedText, false).then(() => {
-                     resDiv.innerText = "Added: " + decodedText;
-                     setTimeout(() => resDiv.style.display = 'none', 2000);
+                resDiv.innerText = "Scanned: " + decodedText + ". Adding...";
+
+                allocateItem(decodedText, true).then(() => {
+                    resDiv.innerText = "Added! Reloading...";
                 }).catch(e => {
-                     resDiv.innerText = "Error: " + e.message; 
+                    resDiv.innerText = "Error: " + e.message;
                 });
             }
 
             async function addFromSelect() {
                 const uuid = $('#unitSelect').val();
-                console.log("Adding Unit:", uuid);
-                
-                if (!uuid) {
-                    alert("Please select a unit from the list first.");
-                    return;
-                }
-                
-                // Save Filter State
+                if (!uuid) { alert("Please select a unit."); return; }
+
                 sessionStorage.setItem('picking_prod', $('#productFilter').val());
                 sessionStorage.setItem('picking_batch', $('#batchFilter').val());
-                
+
                 try {
-                    await allocateItem(uuid, true); 
-                } catch(e) {
-                     console.error(e);
-                     alert("Failed to add: " + e.message);
+                    await allocateItem(uuid, true);
+                } catch (e) {
+                    console.error(e);
+                    alert("Failed to add: " + e.message);
                 }
             }
-            
-            // Legacy Manual Input (Batch Modal) remains same logic
+
             async function handleManualInput() {
                 const text = document.getElementById('manualInput').value;
                 if (!text) return;
@@ -512,7 +550,7 @@
                 for (const line of lines) {
                     try {
                         let uuid = line;
-                        if(uuid.startsWith("U:")) uuid = uuid.substring(2);
+                        if (uuid.startsWith("U:")) uuid = uuid.substring(2);
                         await allocateItem(uuid, false);
                     } catch (e) {
                         console.error("Failed to allocate " + line, e);
@@ -523,14 +561,14 @@
 
             function recalcTotals() {
                 const inputs = document.querySelectorAll('.product-price-input');
-                if (inputs.length === 0) return; 
+                if (inputs.length === 0) return;
 
                 let grandTotal = 0;
                 inputs.forEach(input => {
                     const price = parseFloat(input.value) || 0;
                     const qty = parseInt(input.getAttribute('data-qty')) || 0;
                     const subtotal = price * qty;
-                    
+
                     const row = input.closest('tr');
                     row.querySelector('.product-subtotal').innerText = subtotal.toFixed(2);
                     grandTotal += subtotal;
@@ -541,66 +579,54 @@
             async function updateProductPrice(input) {
                 const price = input.value;
                 const productId = input.getAttribute('data-product-id');
-                
                 recalcTotals();
-
                 if (!price) return;
-                
+
                 try {
                     const res = await fetch(`/sales/${orderId}/update-price`, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            [csrfHeader]: csrfToken
-                        },
+                        headers: { 'Content-Type': 'application/json', [csrfHeader]: csrfToken },
                         body: JSON.stringify({ productId: productId, price: parseFloat(price) })
                     });
-                    
+
                     if (!res.ok) {
-                         alert("Failed to save price");
-                         input.classList.add('is-invalid');
+                        alert("Failed to save price");
+                        input.classList.add('is-invalid');
                     } else {
-                         input.classList.remove('is-invalid');
-                         input.classList.add('is-valid');
-                         setTimeout(() => input.classList.remove('is-valid'), 1000);
+                        input.classList.remove('is-invalid');
+                        input.classList.add('is-valid');
+                        setTimeout(() => input.classList.remove('is-valid'), 1000);
                     }
-                } catch(e) {
-                     console.error(e);
-                }
+                } catch (e) { console.error(e); }
             }
 
             function allocateItem(qrContent, shouldReload = true) {
-                 return fetch(`/sales/${orderId}/allocate`, {
+                return fetch(`/sales/${orderId}/allocate`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'text/plain',
-                        [csrfHeader]: csrfToken
-                    },
+                    headers: { 'Content-Type': 'text/plain', [csrfHeader]: csrfToken },
                     body: qrContent
                 })
-                .then(response => {
-                    if (response.ok) {
-                         if (shouldReload) location.reload();
-                    } else {
-                        return response.text().then(text => { 
-                            throw new Error(text);
-                        });
-                    }
-                });
+                    .then(response => {
+                        if (response.ok) {
+                            if (shouldReload) location.reload();
+                        } else {
+                            return response.text().then(text => { throw new Error(text); });
+                        }
+                    });
             }
-            
+
             function validateFinalize() {
                 let valid = true;
                 document.querySelectorAll('.product-price-input').forEach(input => {
                     const price = parseFloat(input.value) || 0;
                     if (price <= 0) valid = false;
                 });
-                
+
                 if (!valid) {
                     alert("Please set a valid price for all products.");
                     return false;
                 }
-                
+
                 if (isGuest) {
                     const markedPaid = document.getElementById('markPaidCheck').checked;
                     if (!markedPaid) {
@@ -614,4 +640,5 @@
         </script>
     </th:block>
 </body>
+
 </html>

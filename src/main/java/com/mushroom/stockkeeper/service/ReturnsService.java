@@ -75,12 +75,17 @@ public class ReturnsService {
         note.setReason(reason != null ? reason : "Return: " + uuid);
         note.setNoteNumber("CN-" + System.currentTimeMillis());
 
-        // UNIFIED LOGIC: Always Issue Store Credit (Unused)
-        // We do NOT auto-deduct from the invoice logic anymore.
-        // The user must manually "Redeem" this credit against the invoice later if they
-        // wish.
-        note.setUsed(false);
-        note.setRemainingAmount(unitPrice);
+        // UNIFIED LOGIC:
+        // 1. Walk-in / Guest Customers (isHidden) -> Immediate Refund (Used=true)
+        // 2. Account Customers -> Store Credit (Used=false)
+        if (invoice.getCustomer().isHidden()) {
+            note.setUsed(true);
+            note.setRemainingAmount(BigDecimal.ZERO);
+            note.setReason(note.getReason() + " (Walk-in Refund)");
+        } else {
+            note.setUsed(false);
+            note.setRemainingAmount(unitPrice);
+        }
 
         creditNoteRepository.save(note);
 

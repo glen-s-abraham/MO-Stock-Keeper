@@ -1,15 +1,18 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layout/base}">
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+    layout:decorate="~{layout/base}">
+
 <head>
     <title>Returns</title>
 </head>
+
 <body>
     <div layout:fragment="content">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h3 class="mb-0">Process Returns</h3>
             <span class="badge bg-secondary" id="itemCountBadge">0 Items</span>
         </div>
-        
+
         <div th:if="${success}" class="alert alert-success d-flex align-items-center" role="alert">
             <i class="bi bi-check-circle-fill me-2"></i>
             <div th:text="${success}"></div>
@@ -20,16 +23,16 @@
         </div>
 
         <!-- Manual Entry -->
-        <div class="card mb-4 shadow-sm">
+        <div class="card mb-4 shadow-sm" id="manualEntrySection">
             <div class="card-body">
                 <label class="form-label fw-bold">Manual Entry</label>
                 <div class="input-group mb-2">
-                    <select id="returnSelect" class="form-select" placeholder="Search Sold Unit by UUID..." autocomplete="off">
+                    <select id="returnSelect" class="form-select" placeholder="Search Sold Unit by UUID..."
+                        autocomplete="off">
                         <option value="">Select Unit...</option>
-                        <option th:each="u : ${soldUnits}" 
-                                th:value="${u.uuid}" 
-                                th:data-product="${u.batch.product.name}"
-                                th:text="|${u.uuid} - ${u.batch.product.name}|"></option>
+                        <option th:each="u : ${soldUnits}" th:value="${u.uuid}"
+                            th:data-product="${u.batch.product.name}" th:text="|${u.uuid} - ${u.batch.product.name}|">
+                        </option>
                     </select>
                     <button class="btn btn-primary" onclick="addManual()">
                         <i class="bi bi-plus-lg"></i> Add
@@ -38,6 +41,7 @@
                         <i class="bi bi-list-ul"></i> Batch
                     </button>
                 </div>
+                <!-- Switch to Scanner Button Injection Point (Handled by JS) -->
                 <div class="row g-2 align-items-center">
                     <div class="col-auto">
                         <label class="col-form-label small text-muted">Reason:</label>
@@ -56,15 +60,24 @@
         </div>
 
         <!-- Camera Section -->
-        <div class="card mb-4 shadow-sm overflow-hidden" id="cameraSection" style="display:none;">
-            <div class="card-body p-0 text-center position-relative">
-                 <div id="reader" style="width: 100%; min-height: 250px; background-color: #000;"></div>
-                 <div id="scanResult" class="position-absolute bottom-0 w-100 p-2 text-white fw-bold bg-success bg-opacity-75" style="display:none;"></div>
+        <div class="mb-4" id="cameraSection" style="display:none;">
+            <div class="card mb-3 shadow-sm overflow-hidden border">
+                <div class="card-body p-0 text-center position-relative">
+                    <div id="reader" style="width: 100%; min-height: 250px; background-color: #000;"></div>
+                    <div id="scanResult"
+                        class="position-absolute bottom-0 w-100 p-2 text-white fw-bold bg-success bg-opacity-75"
+                        style="display:none;"></div>
+                    <div id="scanError"
+                        class="position-absolute top-0 w-100 p-2 text-danger fw-bold bg-white bg-opacity-75"
+                        style="display:none;"></div>
+                </div>
             </div>
+
+            <button class="btn btn-primary w-100 shadow-sm py-3" id="startScanBtn" onclick="startScanner()">
+                <i class="bi bi-camera me-2"></i> Start Camera
+            </button>
+            <div id="cameraToggleWrapper"></div>
         </div>
-        <button class="btn btn-outline-primary w-100 mb-4" id="startScanBtn" onclick="startScanner()">
-             <i class="bi bi-camera me-2"></i> Open Camera
-        </button>
 
         <!-- Pending Items List -->
         <h6 class="text-uppercase text-muted fw-bold small mb-3">Pending Returns</h6>
@@ -108,7 +121,8 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <textarea class="form-control font-monospace" id="batchText" rows="6" placeholder="UUID1&#10;UUID2&#10;..."></textarea>
+                        <textarea class="form-control font-monospace" id="batchText" rows="6"
+                            placeholder="UUID1&#10;UUID2&#10;..."></textarea>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-primary" onclick="processBatchText()">Add All</button>
@@ -117,8 +131,33 @@
             </div>
         </div>
 
+        <!-- Start Return Mode Modal -->
+        <div class="modal fade" id="startReturnModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-0">
+                        <h5 class="modal-title fw-bold">Start Returns</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body text-center p-4">
+                        <p class="text-muted mb-4">How would you like to add items?</p>
+                        <div class="d-grid gap-3">
+                            <button class="btn btn-lg btn-primary p-3" onclick="triggerStartScan()">
+                                <i class="bi bi-camera fs-3 d-block mb-1"></i>
+                                Scan QR Codes
+                            </button>
+                            <button class="btn btn-lg btn-outline-secondary p-3" onclick="triggerManualEntry()">
+                                <i class="bi bi-keyboard fs-3 d-block mb-1"></i>
+                                Manual Entry
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
-    
+
     <th:block layout:fragment="scripts">
         <script th:inline="javascript">
             /*<![CDATA[*/
@@ -127,8 +166,8 @@
             // Sold Units Data for Restore
             const soldUnitsMap = {};
             /*[# th:each="u : ${soldUnits}"]*/
-            soldUnitsMap['/*[[${u.uuid}]]*/'] = { 
-                value: '/*[[${u.uuid}]]*/', 
+            soldUnitsMap['/*[[${u.uuid}]]*/'] = {
+                value: '/*[[${u.uuid}]]*/',
                 text: '/*[[${u.uuid} + ' - ' + ${u.batch.product.name}]]*/',
                 product: '/*[[${u.batch.product.name}]]*/'
             };
@@ -137,8 +176,9 @@
 
             let pendingItems = []; // { uuid, product, reason }
             let html5QrcodeScanner = null;
+            let isProcessing = false;
 
-            document.addEventListener("DOMContentLoaded", function(){
+            document.addEventListener("DOMContentLoaded", function () {
                 // Initialize Select2
                 $('#returnSelect').select2({
                     theme: 'bootstrap-5',
@@ -148,26 +188,130 @@
                 });
 
                 // Auto-Add on Selection
-                $('#returnSelect').on('select2:select', function(e) {
+                $('#returnSelect').on('select2:select', function (e) {
                     addManual();
                 });
 
                 updateUI();
 
-                // Safe Camera Check
-                if (typeof Html5Qrcode !== 'undefined') {
-                    Html5Qrcode.getCameras().then(devices => {
-                         // Available
-                    }).catch(err => console.log("Camera Error", err));
+                // (Camera check removed to prevent conflict with auto-start)
+                // Mode Persistence Logic
+                const activeMode = sessionStorage.getItem('returnMode');
+                if (activeMode === 'scan') {
+                    switchToScanMode();
+                } else if (activeMode === 'manual') {
+                    switchToManualMode();
                 } else {
-                    console.warn("Html5Qrcode not loaded");
+                    // Default / First Time
+                    var myModal = new bootstrap.Modal(document.getElementById('startReturnModal'));
+                    myModal.show();
                 }
             });
+
+            function triggerStartScan() {
+                var modalEl = document.getElementById('startReturnModal');
+                var modal = bootstrap.Modal.getInstance(modalEl);
+                modal.hide();
+                switchToScanMode();
+            }
+
+            function triggerManualEntry() {
+                var modalEl = document.getElementById('startReturnModal');
+                var modal = bootstrap.Modal.getInstance(modalEl);
+                modal.hide();
+                switchToManualMode();
+            }
+
+            function switchToScanMode() {
+                console.log("Switching to Scan Mode");
+                sessionStorage.setItem('returnMode', 'scan');
+
+                const camSec = document.getElementById('cameraSection');
+                const manSec = document.getElementById('manualEntrySection');
+
+                // 1. UI Updates FIRST (Fail-safe)
+                if (manSec) {
+                    manSec.style.display = 'none';
+                    manSec.style.setProperty('display', 'none', 'important');
+                }
+
+                if (camSec) {
+                    camSec.style.display = 'block';
+                    camSec.style.setProperty('display', 'block', 'important');
+
+                    // Button logic (Safe)
+                    try {
+                        let wrapper = document.getElementById('cameraToggleWrapper');
+                        if (!wrapper) {
+                            wrapper = document.createElement('div');
+                            wrapper.id = 'cameraToggleWrapper';
+                            camSec.appendChild(wrapper);
+                        }
+
+                        if (!document.getElementById('switchToManualBtn')) {
+                            wrapper.innerHTML = ''; // Clear prev
+                            const btn = document.createElement('button');
+                            btn.id = 'switchToManualBtn';
+                            btn.className = 'btn btn-outline-secondary w-100 mt-2 mb-3';
+                            btn.innerHTML = '<i class="bi bi-keyboard"></i> Switch to Manual Entry';
+                            btn.onclick = function () {
+                                switchToManualMode();
+                            };
+                            wrapper.appendChild(btn);
+                        }
+                    } catch (e) { console.error("Error adding manual btn", e); }
+                }
+
+                // 2. Scanner Logic
+                if (!html5QrcodeScanner) startScanner();
+            }
+
+            function switchToManualMode() {
+                console.log("Switching to Manual Mode");
+                sessionStorage.setItem('returnMode', 'manual');
+
+                const camSec = document.getElementById('cameraSection');
+                const manSec = document.getElementById('manualEntrySection');
+
+                // 1. UI Updates FIRST
+                if (camSec) {
+                    camSec.style.display = 'none';
+                    camSec.style.setProperty('display', 'none', 'important');
+                    stopScanner();
+                }
+
+                if (manSec) {
+                    manSec.style.display = 'block';
+                    manSec.style.setProperty('display', 'block', 'important');
+
+                    // Button logic (Safe)
+                    try {
+                        if (!document.getElementById('switchToScanBtn')) {
+                            const label = manSec.querySelector('.form-label');
+                            if (!document.getElementById('manualToggleWrapper')) {
+                                const btnDiv = document.createElement('div');
+                                btnDiv.id = 'manualToggleWrapper';
+                                btnDiv.className = 'd-flex justify-content-end mb-2';
+                                btnDiv.innerHTML = '<button id="switchToScanBtn" class="btn btn-outline-primary btn-sm"><i class="bi bi-camera"></i> Switch to Scanner</button>';
+
+                                // Insert before label if exists, else prepend body
+                                if (label && label.parentNode) {
+                                    label.parentNode.insertBefore(btnDiv, label);
+                                } else {
+                                    manSec.querySelector('.card-body').prepend(btnDiv);
+                                }
+
+                                document.getElementById('switchToScanBtn').onclick = switchToScanMode;
+                            }
+                        }
+                    } catch (e) { console.error("Error adding scan btn", e); }
+                }
+            }
 
             function updateUI() {
                 const tbody = document.querySelector('#returnsTable tbody');
                 tbody.innerHTML = '';
-                
+
                 if (pendingItems.length === 0) {
                     tbody.innerHTML = `<tr id="emptyRow"><td colspan="4" class="text-center py-4 text-muted">No items added yet.</td></tr>`;
                     document.getElementById('submitBtn').disabled = true;
@@ -175,7 +319,7 @@
                     document.getElementById('submitCount').innerText = '0';
                     return;
                 }
-                
+
                 document.getElementById('submitBtn').disabled = false;
                 document.getElementById('itemCountBadge').innerText = pendingItems.length + ' Items';
                 document.getElementById('submitCount').innerText = pendingItems.length;
@@ -198,7 +342,7 @@
 
             function removeItem(index) {
                 const item = pendingItems[index];
-                
+
                 // Add back to Dropdown
                 if ($('#returnSelect option[value="' + item.uuid + '"]').length === 0) {
                     const mapped = soldUnitsMap[item.uuid];
@@ -206,15 +350,18 @@
                     const newOption = new Option(text, item.uuid, false, false);
                     $('#returnSelect').append(newOption).trigger('change');
                 }
-                
+
                 pendingItems.splice(index, 1);
                 updateUI();
             }
 
             async function validateAndAdd(uuid, reason) {
-                // Check duplicates (local)
+                // strict idempotency check
+                if (!uuid) return;
+
+                // 1. Check pending duplicates
                 if (pendingItems.some(i => i.uuid === uuid)) {
-                    throw new Error("UUID already in list");
+                    throw new Error("Item already in Pending List");
                 }
 
                 // Server validate
@@ -224,33 +371,38 @@
                     body: JSON.stringify({ uuid: uuid })
                 });
                 const data = await res.json();
-                
+
                 if (!data.valid) {
                     throw new Error(data.message);
                 }
-                
+
+                // Double check race condition after await
+                if (pendingItems.some(i => i.uuid === uuid)) {
+                    throw new Error("Item already in Pending List (Double Scan)");
+                }
+
                 // Add to Pending
                 pendingItems.push({
                     uuid: uuid,
                     product: data.product,
                     reason: reason
                 });
-                
-                // DATA Hiding: Remove from Dropdown
+
+                // Remove from Dropdown
                 $('#returnSelect option[value="' + uuid + '"]').remove();
                 $('#returnSelect').val(null).trigger('change');
 
                 updateUI();
             }
 
-            // Manual Entry (Triggered by Button or Select)
+            // Manual Entry
             async function addManual() {
                 const feedback = document.getElementById('manualFeedback');
                 const uuid = $('#returnSelect').val();
                 const reason = document.getElementById('globalReason').value;
 
                 if (!uuid) return;
-                
+
                 feedback.style.display = 'none';
                 try {
                     await validateAndAdd(uuid, reason);
@@ -259,24 +411,24 @@
                     feedback.style.display = 'block';
                 }
             }
-            
+
             // Batch Text Input
             async function processBatchText() {
                 const text = document.getElementById('batchText').value;
                 const reason = document.getElementById('globalReason').value;
                 const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l);
-                
+
                 if (lines.length === 0) return;
 
                 // Close modal
                 var myModalEl = document.getElementById('batchInputModal');
                 var modal = bootstrap.Modal.getInstance(myModalEl);
                 modal.hide();
-                
+
                 // Process sequentially
                 let added = 0;
                 let errors = [];
-                
+
                 for (const line of lines) {
                     try {
                         await validateAndAdd(line, reason);
@@ -285,7 +437,7 @@
                         errors.push(line + ": " + e.message);
                     }
                 }
-                
+
                 if (errors.length > 0) {
                     alert(`Added ${added} items.\nFailed:\n` + errors.join('\n'));
                 }
@@ -294,49 +446,81 @@
 
             // Scanner
             function startScanner() {
+                // Ensure UI is ready
+                const camSec = document.getElementById('cameraSection');
+                if (camSec) {
+                    camSec.style.display = 'block';
+                    camSec.style.setProperty('display', 'block', 'important');
+                }
+                document.getElementById('startScanBtn').classList.add('d-none');
+
                 if (html5QrcodeScanner) return;
-                
                 if (typeof Html5Qrcode === 'undefined') {
-                    alert("Scanner library not loaded/supported.");
+                    document.getElementById('scanError').innerText = "Scanner library not loaded.";
+                    document.getElementById('scanError').style.display = 'block';
                     return;
                 }
 
                 html5QrcodeScanner = new Html5Qrcode("reader");
                 const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-                
+
                 html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess)
-                .catch(err => {
-                    console.error(err);
-                    document.getElementById('scanResult').innerText = "Camera Access Failed: " + err;
-                    document.getElementById('scanResult').style.display = 'block';
-                });
-                
-                document.getElementById('startScanBtn').classList.add('d-none');
-                document.getElementById('cameraSection').style.display = 'block';
+                    .catch(err => {
+                        console.error(err);
+                        document.getElementById('scanError').innerText = "Camera Access Failed: " + err;
+                        document.getElementById('scanError').style.display = 'block';
+                    });
+            }
+
+            function stopScanner() {
+                if (html5QrcodeScanner) {
+                    html5QrcodeScanner.stop().then(() => {
+                        html5QrcodeScanner.clear();
+                        html5QrcodeScanner = null;
+                        const startBtn = document.getElementById('startScanBtn');
+                        if (startBtn) startBtn.classList.remove('d-none');
+                    }).catch(err => console.error("Failed to stop scanner", err));
+                }
             }
 
             function onScanSuccess(decodedText) {
+                if (isProcessing) return; // Prevent rapid duplicates
+
                 const reason = document.getElementById('globalReason').value;
                 const feedback = document.getElementById('scanResult');
-                
+                const errorDiv = document.getElementById('scanError');
+
+                isProcessing = true;
+
                 validateAndAdd(decodedText, reason).then(() => {
                     feedback.innerText = "Added: " + decodedText;
                     feedback.style.display = 'block';
-                    setTimeout(() => feedback.style.display = 'none', 1500);
+                    errorDiv.style.display = 'none';
+                    // Flash success
+                    setTimeout(() => {
+                        feedback.style.display = 'none';
+                    }, 2000);
                 }).catch(e => {
-                    feedback.innerText = "Error: " + e.message;
-                    feedback.style.display = 'block';
+                    // Show error but don't stop scanning
+                    errorDiv.innerText = "Error: " + e.message;
+                    errorDiv.style.display = 'block';
+                    feedback.style.display = 'none';
+                    setTimeout(() => {
+                        errorDiv.style.display = 'none';
+                    }, 3000);
+                }).finally(() => {
+                    isProcessing = false;
                 });
             }
 
             // Submit All
             async function submitReturns() {
                 if (pendingItems.length === 0) return;
-                
+
                 const btn = document.getElementById('submitBtn');
                 btn.disabled = true;
                 btn.innerText = "Processing...";
-                
+
                 try {
                     const res = await fetch('/returns/batch', {
                         method: 'POST',
@@ -344,16 +528,14 @@
                         body: JSON.stringify({ items: pendingItems })
                     });
                     const data = await res.json();
-                    
+
                     if (data.redirect) {
-                        // We can simulate a form submit to show flash messages using redirection?
-                        // The server response likely has a "redirect" URL.
                         window.location.href = data.redirect + "?success=" + encodeURIComponent(`Processed ${data.processed} items.`);
                     } else {
-                         alert("Processed: " + data.processed + ". Errors: " + data.errors);
-                         location.reload();
+                        alert("Processed: " + data.processed + ". Errors: " + data.errors);
+                        location.reload();
                     }
-                } catch(e) {
+                } catch (e) {
                     alert("System Error: " + e.message);
                     btn.disabled = false;
                 }
@@ -361,4 +543,5 @@
         </script>
     </th:block>
 </body>
+
 </html>
