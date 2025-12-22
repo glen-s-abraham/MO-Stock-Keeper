@@ -32,12 +32,25 @@
                                 <td class="ps-4">
                                     <div class="fw-medium text-dark" th:text="${c.name}">Customer Name</div>
                                     <small class="text-muted">ID: <span th:text="${c.id}">0</span></small>
+                                    <span th:if="${credits.get(c.id) != null and credits.get(c.id) > 0}" class="badge bg-warning text-dark ms-2">
+                                         Credit: <span th:text="${#numbers.formatCurrency(credits.get(c.id))}">$0.00</span>
+                                    </span>
                                 </td>
                                 <td class="text-end" th:with="bal=${balances.get(c.id)}">
                                     <span th:text="${bal != null ? #numbers.formatCurrency(bal) : '$0.00'}" 
                                           th:class="${bal != null and bal > 0} ? 'fs-5 fw-bold text-danger' : 'fs-5 fw-bold text-success'">$0.00</span>
                                 </td>
+
                                 <td class="text-end pe-4">
+                                    <form th:if="${credits.get(c.id) != null and credits.get(c.id) > 0 and balances.get(c.id) > 0}" 
+                                          th:action="@{/collections/redeem}" method="post" class="d-inline">
+                                        <input type="hidden" name="customerId" th:value="${c.id}"/>
+                                        <button type="submit" class="btn btn-sm btn-outline-warning border-0 me-2" title="Use credits to pay balance">
+                                            <i class="bi bi-gift me-2"></i>Redeem
+                                        </button>
+                                    </form>
+                                    <a th:href="@{'/collections/statement?customerId=' + ${c.id}}" class="btn btn-info btn-sm ms-1"><i class="bi bi-clock-history"></i> Statement</a>
+                                    
                                     <a th:href="@{/collections/payment(customerId=${c.id})}" class="btn btn-sm btn-outline-success border-0"><i class="bi bi-credit-card me-2"></i>Pay</a>
                                 </td>
                             </tr>

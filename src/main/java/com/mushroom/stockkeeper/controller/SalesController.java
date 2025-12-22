@@ -28,15 +28,18 @@ public class SalesController {
     private final SalesOrderRepository orderRepository;
     private final CustomerRepository customerRepository;
     private final InventoryUnitRepository unitRepository;
+    private final com.mushroom.stockkeeper.repository.HarvestBatchRepository batchRepository;
 
     public SalesController(SalesService salesService, SalesOrderRepository orderRepository,
             CustomerRepository customerRepository, InventoryUnitRepository unitRepository,
-            com.mushroom.stockkeeper.repository.InvoiceRepository invoiceRepository) {
+            com.mushroom.stockkeeper.repository.InvoiceRepository invoiceRepository,
+            com.mushroom.stockkeeper.repository.HarvestBatchRepository batchRepository) {
         this.salesService = salesService;
         this.orderRepository = orderRepository;
         this.customerRepository = customerRepository;
         this.unitRepository = unitRepository;
         this.invoiceRepository = invoiceRepository;
+        this.batchRepository = batchRepository;
     }
 
     @GetMapping
@@ -156,6 +159,11 @@ public class SalesController {
         // Add available inventory for manual selection
         model.addAttribute("availableUnits",
                 unitRepository.findByStatus(com.mushroom.stockkeeper.model.InventoryStatus.AVAILABLE));
+
+        // Add batches for filtering
+        model.addAttribute("availableBatches", batchRepository.findAll(org.springframework.data.domain.Sort
+                .by(org.springframework.data.domain.Sort.Direction.DESC, "batchDate")));
+
         return "sales/picking"; // The Scanning Interface
     }
 

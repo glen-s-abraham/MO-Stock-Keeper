@@ -42,20 +42,34 @@
         <div class="card mb-4 shadow-sm">
             <div class="card-body">
                 <label class="form-label fw-bold">Manual Item Entry</label>
-                <div class="input-group">
-                    <input class="form-control" list="inventoryList" id="manualSearchInput" placeholder="Search by UUID or Product Name..." onchange="addFromSearch()">
-                    <datalist id="inventoryList">
-                        <option th:each="u : ${availableUnits}" th:value="${u.uuid}" th:text="|${u.batch.product.name} - ${u.uuid}|"></option>
-                    </datalist>
-                    <button class="btn btn-primary" onclick="addFromSearch()">
-                        <i class="bi bi-plus-lg"></i> Add
-                    </button>
-                    <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#manualInputModal">
-                        <i class="bi bi-list-ul"></i> Batch
-                    </button>
-                    <button class="btn btn-link text-decoration-none" onclick="showPickingModal()" title="Open Picker Wizard">
-                        <i class="bi bi-magic"></i>
-                    </button>
+                <div class="row g-2 mb-3">
+                     <!-- Product Filter -->
+                     <div class="col-md-3">
+                        <select id="productFilter" class="form-select" placeholder="Filter by Product..." autocomplete="off">
+                            <option value="">All Products</option>
+                        </select>
+                     </div>
+                     <!-- Batch Filter -->
+                     <div class="col-md-3">
+                        <select id="batchFilter" class="form-select" placeholder="Filter by Batch (Optional)..." autocomplete="off">
+                            <option value="">All Batches</option>
+                        </select>
+                     </div>
+                     <!-- Unit Select -->
+                     <div class="col-md-6">
+                        <div class="input-group">
+                            <select id="unitSelect" class="form-select" placeholder="Search Unit by UUID..." autocomplete="off">
+                                <option value="">Select Unit...</option>
+                            </select>
+
+                            <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#manualInputModal">
+                                <i class="bi bi-list-ul"></i> Batch
+                            </button>
+                            <button class="btn btn-link text-decoration-none" onclick="showPickingModal()" title="Open Picker Wizard">
+                                <i class="bi bi-magic"></i>
+                            </button>
+                        </div>
+                     </div>
                 </div>
                 <div id="manualFeedback" class="form-text text-success fw-bold" style="display:none;"></div>
             </div>
@@ -218,6 +232,8 @@
 
     </div>
     
+    </div>
+    
     <th:block layout:fragment="scripts">
         <script th:inline="javascript">
             /*<![CDATA[*/
@@ -225,18 +241,184 @@
             const csrfToken = /*[[${_csrf.token}]]*/ '';
             const csrfHeader = /*[[${_csrf.headerName}]]*/ '';
             const isOrderEmpty = /*[[${order.allocatedUnits.isEmpty()}]]*/ true;
-            const isGuest = /*[[${order.customer.hidden}]]*/ false; 
+            const isGuest = /*[[${order.customer.hidden}]]*/ false;
+            
+            // Master List for Filtering
+            const allUnits = [
+                /*[# th:each="u : ${availableUnits}"]*/
+                { 
+                    id: /*[[${u.uuid}]]*/ '', 
+                    batch: /*[[${u.batch != null ? u.batch.batchCode : ''}]]*/ '',
+                    product: /*[[${u.batch != null ? u.batch.product.name : ''}]]*/ '', 
+                    text: /*[[${u.uuid} + ' - ' + ${u.batch != null ? u.batch.product.name : 'Unknown'}]]*/ '' 
+                },
+                /*[/]*/
+            ];
+            
+            const batchList = [
+                /*[# th:each="b : ${availableBatches}"]*/
+                { 
+                    id: /*[[${b.batchCode}]]*/ '', 
+                    product: /*[[${b.product != null ? b.product.name : ''}]]*/ '',
+                    text: /*[[${b.batchCode} + ' (' + (${b.product != null ? b.product.name : 'Unknown'}) + ')' ]]*/ '' 
+                },
+                /*[/]*/
+            ];
             /*]]>*/
 
             let html5QrcodeScanner = null;
             
             document.addEventListener('DOMContentLoaded', function() {
+                console.log("Picking Page Loaded. Initializing Select2...");
                 if (isOrderEmpty) {
                      var myModal = new bootstrap.Modal(document.getElementById('startPickingModal'));
                      myModal.show();
                 }
                 recalcTotals();
+                
+                try {
+                    initSelects();
+                } catch(e) {
+                    console.error("Critical Error initializing Select2:", e);
+                }
+                
+                // Check for camera safely
+                if (typeof Html5Qrcode !== 'undefined') {
+                    Html5Qrcode.getCameras().then(devices => {
+                        if (devices && devices.length) {
+                            document.getElementById('cameraSection').style.display = 'block';
+                        }
+                    }).catch(err => {
+                       console.log("No camera permissions or devices", err);
+                    });
+                } else {
+                    console.warn("Html5Qrcode library not loaded. Camera features disabled.");
+                }
             });
+
+            function initSelects() {
+                // 1. Populate Product Filter from unique products in batchList
+                const uniqueProducts = [...new Set(batchList.map(b => b.product))].filter(Boolean).sort();
+                const productOptions = uniqueProducts.map(p => ({ id: p, text: p }));
+                
+                // Add "All Products" option
+                productOptions.unshift({ id: '', text: 'All Products' });
+
+                $('#productFilter').select2({
+                    theme: 'bootstrap-5',
+                    data: productOptions,
+                    placeholder: 'Filter by Product...'
+                });
+
+                // 2. Batch Filter (Init with All)
+                $('#batchFilter').select2({
+                    theme: 'bootstrap-5',
+                    data: [{id: '', text: 'All Batches'}, ...batchList],
+                    placeholder: 'Filter by Batch...'
+                });
+                
+                // 3. Unit Select (Init with All)
+                $('#unitSelect').select2({
+                    theme: 'bootstrap-5',
+                    data: allUnits,
+                    placeholder: 'Select Unit...',
+                    allowClear: true
+                });
+
+                // --- Events ---
+
+                // Product Change -> Filter Batches
+                $('#productFilter').on('select2:select', function (e) {
+                    const prod = e.params.data.id;
+                    updateBatchFilter(prod);
+                });
+                $('#productFilter').on('change', function() { // Handle clear/manual change
+                     if (!$(this).val()) updateBatchFilter('');
+                });
+
+                // Batch Change -> Filter Units
+                $('#batchFilter').on('select2:select', function (e) {
+                    const batchCode = e.params.data.id;
+                    updateUnitFilter(batchCode, $('#productFilter').val());
+                });
+                $('#batchFilter').on('change', function() {
+                     if (!$(this).val()) updateUnitFilter('', $('#productFilter').val());
+                });
+
+                // Unit Selected -> Auto Add
+                $('#unitSelect').on('select2:select', function (e) {
+                     addFromSelect();
+                });
+
+                // --- Restore State if Reloaded ---
+                const savedProd = sessionStorage.getItem('picking_prod');
+                const savedBatch = sessionStorage.getItem('picking_batch');
+
+                if (savedProd) {
+                    $('#productFilter').val(savedProd).trigger('change.select2');
+                    // Manually trigger cascade since change event might be async or finicky
+                    updateBatchFilter(savedProd);
+                    
+                    if (savedBatch) {
+                        $('#batchFilter').val(savedBatch).trigger('change.select2');
+                        updateUnitFilter(savedBatch, savedProd);
+                    }
+                    
+                    // Clear state to avoid sticky filters on fresh nav
+                    sessionStorage.removeItem('picking_prod');
+                    sessionStorage.removeItem('picking_batch');
+                }
+            }
+
+            function updateBatchFilter(selectedProduct) {
+                console.log("Updating Batches for product:", selectedProduct);
+                
+                let filteredBatches = batchList;
+                if (selectedProduct) {
+                    filteredBatches = batchList.filter(b => b.product === selectedProduct);
+                }
+
+                // Destroy and Re-init Batch Select
+                let $batchSelect = $('#batchFilter');
+                $batchSelect.empty();
+                $batchSelect.append('<option value="">All Batches</option>');
+
+                $batchSelect.select2({
+                    theme: 'bootstrap-5',
+                    data: filteredBatches,
+                    placeholder: 'Filter by Batch...'
+                });
+                
+                // Reset unit filter too, as batches changed
+                updateUnitFilter('', selectedProduct);
+            }
+
+            function updateUnitFilter(batchCode, productFilter) {
+                console.log("Filtering Units. Batch:", batchCode, "Product:", productFilter);
+                
+                let filteredData = allUnits;
+
+                if (batchCode) {
+                    // Specific batch selected -> Strict filter
+                    filteredData = allUnits.filter(u => u.batch === batchCode);
+                } else if (productFilter) {
+                    // No batch selected, but Product selected -> Show all units of that product
+                    filteredData = allUnits.filter(u => u.product === productFilter);
+                }
+                // else: Show All Units (default)
+
+                // Destroy and Re-init Unit Select
+                let $unitSelect = $('#unitSelect');
+                $unitSelect.empty(); 
+                $unitSelect.append('<option></option>');
+
+                $unitSelect.select2({
+                    theme: 'bootstrap-5',
+                    data: filteredData,
+                    placeholder: 'Select Unit...',
+                    allowClear: true
+                });
+            }
 
             function triggerStartScan() {
                 var modalEl = document.getElementById('startPickingModal');
@@ -249,7 +431,8 @@
                 var modalEl = document.getElementById('startPickingModal');
                 var modal = bootstrap.Modal.getInstance(modalEl);
                 modal.hide();
-                document.getElementById('manualSearchInput').focus();
+                // Focus on Select2
+                $('#unitSelect').select2('open');
             }
             
             window.showPickingModal = function() {
@@ -257,8 +440,15 @@
                  myModal.show();
             }
 
+            // ... (HTML5QRCode Logic remains same but check startScanner integration) ...
+
             function startScanner() {
                 if (html5QrcodeScanner) return; 
+                
+                if (typeof Html5Qrcode === 'undefined') {
+                    alert("Scanner library not loaded.");
+                    return;
+                }
 
                 html5QrcodeScanner = new Html5Qrcode("reader");
                 const config = { fps: 10, qrbox: { width: 250, height: 250 } };
@@ -271,15 +461,6 @@
                 
                 document.getElementById('startScanBtn').classList.add('d-none');
             }
-            
-            // Check for camera
-            Html5Qrcode.getCameras().then(devices => {
-                if (devices && devices.length) {
-                    document.getElementById('cameraSection').style.display = 'block';
-                }
-            }).catch(err => {
-               console.log("No camera permissions or devices", err);
-            });
             
             function onScanSuccess(decodedText, decodedResult) {
                 const resDiv = document.getElementById('scanResult');
@@ -294,18 +475,28 @@
                 });
             }
 
-            async function addFromSearch() {
-                const input = document.getElementById('manualSearchInput');
-                const val = input.value;
-                if (!val) return;
+            async function addFromSelect() {
+                const uuid = $('#unitSelect').val();
+                console.log("Adding Unit:", uuid);
+                
+                if (!uuid) {
+                    alert("Please select a unit from the list first.");
+                    return;
+                }
+                
+                // Save Filter State
+                sessionStorage.setItem('picking_prod', $('#productFilter').val());
+                sessionStorage.setItem('picking_batch', $('#batchFilter').val());
                 
                 try {
-                    await allocateItem(val, true); 
+                    await allocateItem(uuid, true); 
                 } catch(e) {
+                     console.error(e);
                      alert("Failed to add: " + e.message);
                 }
             }
-
+            
+            // Legacy Manual Input (Batch Modal) remains same logic
             async function handleManualInput() {
                 const text = document.getElementById('manualInput').value;
                 if (!text) return;
@@ -319,7 +510,9 @@
 
                 for (const line of lines) {
                     try {
-                        await allocateItem(line, false);
+                        let uuid = line;
+                        if(uuid.startsWith("U:")) uuid = uuid.substring(2);
+                        await allocateItem(uuid, false);
                     } catch (e) {
                         console.error("Failed to allocate " + line, e);
                     }

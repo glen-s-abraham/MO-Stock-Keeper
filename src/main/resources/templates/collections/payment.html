@@ -19,7 +19,7 @@
                             
                             <div class="mb-3">
                                 <label class="form-label text-muted small">Customer</label>
-                                <select class="form-select form-select-lg" name="customerId" id="customerSelect" required onchange="updateMaxAmount()">
+                                <select class="form-select searchable" name="customerId" id="customerSelect" required onchange="updateMaxAmount()">
                                     <option value="">Select Customer...</option>
                                     <option th:each="c : ${customers}" 
                                             th:value="${c.id}" 

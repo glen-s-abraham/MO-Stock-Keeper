@@ -25,15 +25,27 @@ public class CreditNote {
     @JoinColumn(name = "invoice_id")
     private Invoice originalInvoice; // Optional link to original invoice
 
+    @ManyToOne
+    @JoinColumn(name = "payment_id")
+    private Payment generatedFromPayment; // Link to source payment (e.g. overpayment)
+
     @Column(nullable = false)
     private BigDecimal amount;
+
+    // Tax portion of the credit (for reporting)
+    private BigDecimal taxAmount;
 
     private String reason;
 
     @Column(nullable = false)
     private LocalDate noteDate;
 
-    private boolean isUsed = false; // If applied to an invoice/balance
+    private boolean isUsed = false; // Deprecated in favor of remainingAmount > 0 logic, but kept for compat
+
+    private BigDecimal remainingAmount;
+
+    @Version
+    private Long version;
 
     @Column(updatable = false)
     private LocalDateTime createdAt;
@@ -43,5 +55,7 @@ public class CreditNote {
         createdAt = LocalDateTime.now();
         if (noteDate == null)
             noteDate = LocalDate.now();
+        if (remainingAmount == null)
+            remainingAmount = amount;
     }
 }

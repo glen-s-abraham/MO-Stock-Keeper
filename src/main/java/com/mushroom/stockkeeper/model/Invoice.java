@@ -25,16 +25,24 @@ public class Invoice {
     @JoinColumn(name = "customer_id", nullable = false)
     private Customer customer; // Denormalized for query perf
 
+    @OneToMany(mappedBy = "originalInvoice", fetch = FetchType.LAZY)
+    private java.util.List<CreditNote> creditNotes;
+
     @Column(nullable = false)
     private LocalDate invoiceDate;
 
-    private BigDecimal totalAmount;
+    private BigDecimal totalAmount; // Gross Amount
+    private BigDecimal taxAmount;
+    private BigDecimal netAmount;
     private BigDecimal amountPaid;
     private BigDecimal balanceDue;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private InvoiceStatus status;
+
+    @Version
+    private Long version;
 
     @Column(updatable = false)
     private LocalDateTime createdAt;
@@ -46,6 +54,10 @@ public class Invoice {
             amountPaid = BigDecimal.ZERO;
         if (balanceDue == null)
             balanceDue = totalAmount;
+        if (taxAmount == null)
+            taxAmount = BigDecimal.ZERO;
+        if (netAmount == null)
+            netAmount = totalAmount;
         if (status == null)
             status = InvoiceStatus.UNPAID;
     }

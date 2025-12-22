@@ -42,8 +42,15 @@ public class CustomerController {
     }
 
     @GetMapping("/delete/{id}")
-    public String delete(@PathVariable Long id) {
-        customerRepository.deleteById(id);
+    public String delete(@PathVariable Long id,
+            org.springframework.web.servlet.mvc.support.RedirectAttributes redirectAttributes) {
+        try {
+            customerRepository.deleteById(id);
+            redirectAttributes.addFlashAttribute("success", "Customer deleted successfully.");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error",
+                    "Cannot delete customer. They likely have active orders or financial records.");
+        }
         return "redirect:/customers";
     }
 }

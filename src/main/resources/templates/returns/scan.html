@@ -24,10 +24,13 @@
             <div class="card-body">
                 <label class="form-label fw-bold">Manual Entry</label>
                 <div class="input-group mb-2">
-                    <input type="text" class="form-control font-monospace" id="manualUuid" list="soldList" placeholder="Search UUID or Product..." onkeypress="handleEnter(event)">
-                    <datalist id="soldList">
-                        <option th:each="u : ${soldUnits}" th:value="${u.uuid}" th:text="|${u.batch.product.name} - ${u.uuid}|"></option>
-                    </datalist>
+                    <select id="returnSelect" class="form-select" placeholder="Search Sold Unit by UUID..." autocomplete="off">
+                        <option value="">Select Unit...</option>
+                        <option th:each="u : ${soldUnits}" 
+                                th:value="${u.uuid}" 
+                                th:data-product="${u.batch.product.name}"
+                                th:text="|${u.uuid} - ${u.batch.product.name}|"></option>
+                    </select>
                     <button class="btn btn-primary" onclick="addManual()">
                         <i class="bi bi-plus-lg"></i> Add
                     </button>
@@ -121,10 +124,45 @@
             /*<![CDATA[*/
             const csrfToken = document.querySelector("meta[name='_csrf']").getAttribute("content");
             const csrfHeader = document.querySelector("meta[name='_csrf_header']").getAttribute("content");
+            // Sold Units Data for Restore
+            const soldUnitsMap = {};
+            /*[# th:each="u : ${soldUnits}"]*/
+            soldUnitsMap['/*[[${u.uuid}]]*/'] = { 
+                value: '/*[[${u.uuid}]]*/', 
+                text: '/*[[${u.uuid} + ' - ' + ${u.batch.product.name}]]*/',
+                product: '/*[[${u.batch.product.name}]]*/'
+            };
+            /*[/]*/
             /*]]>*/
 
             let pendingItems = []; // { uuid, product, reason }
             let html5QrcodeScanner = null;
+
+            document.addEventListener("DOMContentLoaded", function(){
+                // Initialize Select2
+                $('#returnSelect').select2({
+                    theme: 'bootstrap-5',
+                    placeholder: 'Select Sold Unit...',
+                    allowClear: true,
+                    width: '100%'
+                });
+
+                // Auto-Add on Selection
+                $('#returnSelect').on('select2:select', function(e) {
+                    addManual();
+                });
+
+                updateUI();
+
+                // Safe Camera Check
+                if (typeof Html5Qrcode !== 'undefined') {
+                    Html5Qrcode.getCameras().then(devices => {
+                         // Available
+                    }).catch(err => console.log("Camera Error", err));
+                } else {
+                    console.warn("Html5Qrcode not loaded");
+                }
+            });
 
             function updateUI() {
                 const tbody = document.querySelector('#returnsTable tbody');
@@ -159,6 +197,16 @@
             }
 
             function removeItem(index) {
+                const item = pendingItems[index];
+                
+                // Add back to Dropdown
+                if ($('#returnSelect option[value="' + item.uuid + '"]').length === 0) {
+                    const mapped = soldUnitsMap[item.uuid];
+                    const text = mapped ? mapped.text : (item.uuid + " - " + item.product);
+                    const newOption = new Option(text, item.uuid, false, false);
+                    $('#returnSelect').append(newOption).trigger('change');
+                }
+                
                 pendingItems.splice(index, 1);
                 updateUI();
             }
@@ -181,23 +229,24 @@
                     throw new Error(data.message);
                 }
                 
+                // Add to Pending
                 pendingItems.push({
                     uuid: uuid,
                     product: data.product,
                     reason: reason
                 });
+                
+                // DATA Hiding: Remove from Dropdown
+                $('#returnSelect option[value="' + uuid + '"]').remove();
+                $('#returnSelect').val(null).trigger('change');
+
                 updateUI();
             }
 
-            // Manual Entry
-            function handleEnter(e) {
-                if (e.key === 'Enter') addManual();
-            }
-
+            // Manual Entry (Triggered by Button or Select)
             async function addManual() {
-                const input = document.getElementById('manualUuid');
                 const feedback = document.getElementById('manualFeedback');
-                const uuid = input.value.trim();
+                const uuid = $('#returnSelect').val();
                 const reason = document.getElementById('globalReason').value;
 
                 if (!uuid) return;
@@ -205,8 +254,6 @@
                 feedback.style.display = 'none';
                 try {
                     await validateAndAdd(uuid, reason);
-                    input.value = '';
-                    input.focus();
                 } catch (e) {
                     feedback.innerText = e.message;
                     feedback.style.display = 'block';
@@ -248,6 +295,11 @@
             // Scanner
             function startScanner() {
                 if (html5QrcodeScanner) return;
+                
+                if (typeof Html5Qrcode === 'undefined') {
+                    alert("Scanner library not loaded/supported.");
+                    return;
+                }
 
                 html5QrcodeScanner = new Html5Qrcode("reader");
                 const config = { fps: 10, qrbox: { width: 250, height: 250 } };
@@ -255,16 +307,13 @@
                 html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess)
                 .catch(err => {
                     console.error(err);
+                    document.getElementById('scanResult').innerText = "Camera Access Failed: " + err;
+                    document.getElementById('scanResult').style.display = 'block';
                 });
                 
                 document.getElementById('startScanBtn').classList.add('d-none');
                 document.getElementById('cameraSection').style.display = 'block';
             }
-            
-            // Camera visibility check
-            Html5Qrcode.getCameras().then(devices => {
-                 // Nothing special, button handles toggle
-            }).catch(err => console.log(err));
 
             function onScanSuccess(decodedText) {
                 const reason = document.getElementById('globalReason').value;

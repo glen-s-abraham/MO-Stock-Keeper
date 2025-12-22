@@ -16,13 +16,16 @@ public class SalesService {
     private final InventoryUnitRepository unitRepository;
     private final InvoiceRepository invoiceRepository;
     private final PaymentRepository paymentRepository;
+    private final CreditNoteRepository creditNoteRepository;
 
     public SalesService(SalesOrderRepository orderRepository, InventoryUnitRepository unitRepository,
-            InvoiceRepository invoiceRepository, PaymentRepository paymentRepository) {
+            InvoiceRepository invoiceRepository, PaymentRepository paymentRepository,
+            CreditNoteRepository creditNoteRepository) {
         this.orderRepository = orderRepository;
         this.unitRepository = unitRepository;
         this.invoiceRepository = invoiceRepository;
         this.paymentRepository = paymentRepository;
+        this.creditNoteRepository = creditNoteRepository;
     }
 
     @Transactional
@@ -53,6 +56,12 @@ public class SalesService {
 
         if (unit.getStatus() != InventoryStatus.AVAILABLE) {
             throw new Exception("Unit " + uuid + " is not AVAILABLE (Status: " + unit.getStatus() + ")");
+        }
+
+        // Expiry Check
+        if (unit.getBatch().getExpiryDate() != null && unit.getBatch().getExpiryDate().isBefore(LocalDate.now())) {
+            throw new Exception(
+                    "Unit " + uuid + " is EXPIRED (Expiry: " + unit.getBatch().getExpiryDate() + "). Cannot sell.");
         }
 
         // Link
@@ -126,7 +135,24 @@ public class SalesService {
         invoice.setSalesOrder(so);
         invoice.setCustomer(so.getCustomer());
         invoice.setInvoiceDate(LocalDate.now());
-        invoice.setInvoiceNumber("INV-" + System.currentTimeMillis());
+        // Sequential Numbering Logic (Robust: Max + 1)
+        long nextNum = 1;
+        java.util.Optional<Invoice> lastInvoice = invoiceRepository.findTopByOrderByIdDesc();
+        if (lastInvoice.isPresent()) {
+            String lastNumStr = lastInvoice.get().getInvoiceNumber();
+            // Expected format INV-XXXXX
+            if (lastNumStr.startsWith("INV-")) {
+                try {
+                    long lastId = Long.parseLong(lastNumStr.substring(4));
+                    nextNum = lastId + 1;
+                } catch (NumberFormatException e) {
+                    // Fallback if format is weird, rely on count + 1 or timestamp?
+                    // Ideally log warning. For now, continue safe.
+                    nextNum = invoiceRepository.count() + 1;
+                }
+            }
+        }
+        invoice.setInvoiceNumber(String.format("INV-%05d", nextNum));
 
         // Calculate Total
         BigDecimal total = BigDecimal.ZERO;
@@ -186,10 +212,27 @@ public class SalesService {
         // Cancel Invoice
         com.mushroom.stockkeeper.model.Invoice invoice = invoiceRepository.findBySalesOrder(so)
                 .orElseThrow(() -> new Exception("Invoice not found for this order."));
+
+        // SAFE CANCELLATION: Issue Refund if Paid
+        if (invoice.getAmountPaid().compareTo(BigDecimal.ZERO) > 0) {
+            CreditNote refundNote = new CreditNote();
+            refundNote.setCustomer(invoice.getCustomer());
+            refundNote.setOriginalInvoice(invoice);
+            refundNote.setAmount(invoice.getAmountPaid());
+            refundNote.setRemainingAmount(invoice.getAmountPaid());
+            refundNote.setNoteDate(LocalDate.now());
+            refundNote.setReason("Refund for Cancelled Order " + invoice.getInvoiceNumber());
+            refundNote.setNoteNumber("RF-" + System.currentTimeMillis());
+            refundNote.setUsed(false);
+            creditNoteRepository.save(refundNote);
+        }
+
         invoice.setStatus(InvoiceStatus.CANCELLED);
         invoice.setBalanceDue(BigDecimal.ZERO);
-        invoice.setTotalAmount(BigDecimal.ZERO);
-        invoice.setAmountPaid(BigDecimal.ZERO);
+        // We keep TotalAmount and AmountPaid for historical record, but status is
+        // CANCELLED.
+        // invoice.setTotalAmount(BigDecimal.ZERO); // Optional: Keep strict history
+        // invoice.setAmountPaid(BigDecimal.ZERO);
         invoiceRepository.save(invoice);
 
         // Revert Units
@@ -200,8 +243,7 @@ public class SalesService {
             unitRepository.save(unit);
         }
 
-        // Clear the list in memory to avoid confusion if object is reused in
-        // transaction (optional but safe)
+        // Clear the list in memory to avoid confusion
         so.getAllocatedUnits().clear();
 
         // Update Order Status

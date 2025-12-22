@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>Invoices Dashboard</title>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">Invoices Dashboard</h1>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+            <tr>
+                <th>Customer</th>
+                <th class="text-end">Total Due</th>
+                <th class="text-end">Credits</th>
+                <th class="text-center">Unpaid</th>
+                <th class="text-center">Partial</th>
+                <th class="text-center">Paid</th>
+                <th class="text-center">Action</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="summary : ${summaries}">
+                <td th:text="${summary.customerName}">Customer Name</td>
+                <td class="text-end" th:text="${#numbers.formatCurrency(summary.totalBalanceDue)}">$0.00</td>
+                <td class="text-end text-success" th:text="${#numbers.formatCurrency(summary.totalCreditAmount)}">$0.00</td>
+                <td class="text-center">
+                    <span th:if="${summary.unpaidCount > 0}" class="badge bg-danger" th:text="${summary.unpaidCount}">0</span>
+                    <span th:unless="${summary.unpaidCount > 0}" class="text-muted">-</span>
+                </td>
+                <td class="text-center">
+                    <span th:if="${summary.partialCount > 0}" class="badge bg-warning text-dark" th:text="${summary.partialCount}">0</span>
+                    <span th:unless="${summary.partialCount > 0}" class="text-muted">-</span>
+                </td>
+                <td class="text-center">
+                    <span th:if="${summary.paidCount > 0}" class="badge bg-success" th:text="${summary.paidCount}">0</span>
+                    <span th:unless="${summary.paidCount > 0}" class="text-muted">-</span>
+                </td>
+                <td class="text-center">
+                    <a th:href="@{/invoices/customer/{id}(id=${summary.customerId})}" class="btn btn-sm btn-primary">
+                        View Details
+                    </a>
+                </td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(summaries)}">
+                <td colspan="6" class="text-center text-muted">No invoice data available.</td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

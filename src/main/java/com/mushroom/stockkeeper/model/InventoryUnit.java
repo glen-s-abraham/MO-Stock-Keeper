@@ -36,6 +36,9 @@ public class InventoryUnit {
     @Column(updatable = false)
     private LocalDateTime createdAt;
 
+    @Version
+    private Long version;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

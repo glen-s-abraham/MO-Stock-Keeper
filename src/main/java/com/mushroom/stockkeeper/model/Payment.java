@@ -28,10 +28,15 @@ public class Payment {
     @Column(nullable = false)
     private PaymentMethod paymentMethod;
 
+    private boolean reversed = false;
+
     private String referenceNumber; // e.g. Check #, Transaction ID
 
     @Column(updatable = false)
     private LocalDateTime createdAt;
+
+    @Version
+    private Long version;
 
     @PrePersist
     protected void onCreate() {

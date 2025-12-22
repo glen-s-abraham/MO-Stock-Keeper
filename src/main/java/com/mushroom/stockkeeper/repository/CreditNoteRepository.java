@@ -6,4 +6,6 @@ import java.util.Optional;
 
 public interface CreditNoteRepository extends JpaRepository<CreditNote, Long> {
     Optional<CreditNote> findByNoteNumber(String noteNumber);
+
+    Optional<CreditNote> findByGeneratedFromPayment(com.mushroom.stockkeeper.model.Payment payment);
 }

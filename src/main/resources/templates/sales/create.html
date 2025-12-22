@@ -29,10 +29,10 @@
                             <!-- Existing Customer Section -->
                             <div id="sectionExisting">
                                 <div class="mb-3">
-                                    <label class="form-label text-muted small">Search & Select</label>
-                                    <input type="text" class="form-control mb-2" id="customerSearch" placeholder="Type to filter..." onkeyup="filterCustomers()">
-                                    <select class="form-select form-select-lg" name="customerId" id="customerIdSelect" size="5">
-                                        <option th:each="c : ${customers}" th:value="${c.id}" th:text="${c.name} + ' (' + (${c.phoneNumber} ?: 'No Phone') + ')'"></option>
+                                    <label class="form-label fw-bold">Select Existing Customer</label>
+                                    <select class="form-select searchable" name="customerId" id="customerSelect" placeholder="Search customer...">
+                                        <option value="">-- Choose Customer --</option>
+                                        <option th:each="c : ${customers}" th:value="${c.id}" th:text="|${c.name} (${c.phoneNumber})|"></option>
                                     </select>
                                     <small class="text-muted">Select a customer from the list.</small>
                                 </div>
@@ -92,21 +92,7 @@
                                 }
                             }
 
-                            function filterCustomers() {
-                                const input = document.getElementById('customerSearch');
-                                const filter = input.value.toLowerCase();
-                                const select = document.getElementById('customerIdSelect');
-                                const options = select.getElementsByTagName('option');
 
-                                for (let i = 0; i < options.length; i++) {
-                                    const txtValue = options[i].textContent || options[i].innerText;
-                                    if (txtValue.toLowerCase().indexOf(filter) > -1) {
-                                        options[i].style.display = "";
-                                    } else {
-                                        options[i].style.display = "none";
-                                    }
-                                }
-                            }
                             
                             // Guest Logic on Submit
                             document.getElementById('createOrderForm').addEventListener('submit', function(e) {

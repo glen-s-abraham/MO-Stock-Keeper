@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>Statement of Account</title>
+    <style>
+        @media print {
+            .no-print { display: none !important; }
+            .card { border: none !important; }
+        }
+    </style>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="row mb-4 align-items-center">
+        <div class="col">
+            <h2>Statement of Account</h2>
+            <h4 class="text-muted" th:text="${customer.name}">Customer Name</h4>
+            <div th:text="${customer.email}">email@example.com</div>
+        </div>
+        <div class="col-auto no-print">
+            <button onclick="window.print()" class="btn btn-secondary"><i class="bi bi-printer"></i> Print</button>
+            <a th:href="@{/collections}" class="btn btn-outline-primary">Back</a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <table class="table table-striped mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Reference</th>
+                        <th class="text-end">Debit (Inv)</th>
+                        <th class="text-end">Credit (Pay)</th>
+                        <th class="text-end">Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="t : ${transactions}">
+                        <td th:text="${t.date}">2023-01-01</td>
+                        <td>
+                            <span th:text="${t.type}" class="badge" 
+                                  th:classappend="${t.type == 'INVOICE' ? 'bg-primary' : (t.type == 'PAYMENT' ? 'bg-success' : 'bg-secondary')}">TYPE</span>
+                            <small th:if="${t.description != ''}" th:text="${t.description}" class="text-muted ms-1"></small>
+                            
+                            <!-- Void Action for Payments -->
+                            <div th:if="${t.type == 'PAYMENT' and !t.reversed}" class="d-inline ms-2 no-print">
+                                <form th:action="@{/collections/payment/void}" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to void this payment? This will reverse the credit.');">
+                                    <input type="hidden" name="paymentId" th:value="${t.paymentId}" />
+                                    <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-1" style="font-size: 0.7em;">Void</button>
+                                </form>
+                            </div>
+                        </td>
+                        <td th:text="${t.reference}">REF-001</td>
+                        <td class="text-end text-danger" th:text="${t.debit > 0 ? #numbers.formatCurrency(t.debit) : '-'}">$100.00</td>
+                        <td class="text-end text-success" th:text="${t.credit > 0 ? #numbers.formatCurrency(t.credit) : '-'}">$100.00</td>
+                        <td class="text-end fw-bold" th:text="${#numbers.formatCurrency(t.balance)}">$0.00</td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(transactions)}">
+                        <td colspan="6" class="text-center py-4">No transactions found.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>Invoice Details</title>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            Invoice: <span th:text="${invoice.invoiceNumber}">INV-001</span>
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <a th:href="@{/invoices/customer/{id}(id=${invoice.customer.id})}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to List
+            </a>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            Summary
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3"><strong>Date:</strong> <span th:text="${#temporals.format(invoice.invoiceDate, 'yyyy-MM-dd')}"></span></div>
+                <div class="col-md-3"><strong>Total:</strong> <span th:text="${#numbers.formatCurrency(invoice.totalAmount)}"></span></div>
+                <div class="col-md-3"><strong>Paid:</strong> <span th:text="${#numbers.formatCurrency(invoice.amountPaid)}"></span></div>
+                <div class="col-md-3"><strong>Balance:</strong> <span th:text="${#numbers.formatCurrency(invoice.balanceDue)}"></span></div>
+            </div>
+            <div class="row mt-2">
+                 <div class="col-md-3"><strong>Status:</strong> <span th:text="${invoice.status}"></span></div>
+            </div>
+        </div>
+    </div>
+
+    <h3>Credit Notes (Returns/Overpayment)</h3>
+    <div class="table-responsive">
+        <table class="table table-striped table-sm">
+            <thead>
+            <tr>
+                <th>Note #</th>
+                <th>Date</th>
+                <th>Reason</th>
+                <th class="text-end">Amount</th>
+                <th class="text-center">Status</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="note : ${creditNotes}">
+                <td th:text="${note.noteNumber}">CN-001</td>
+                <td th:text="${#temporals.format(note.noteDate, 'yyyy-MM-dd')}">2023-01-01</td>
+                <td th:text="${note.reason}">Reason</td>
+                <td class="text-end text-success" th:text="${#numbers.formatCurrency(note.amount)}">$50.00</td>
+                <td class="text-center">
+                    <span th:if="${note.remainingAmount == null or note.remainingAmount == 0}" class="badge bg-secondary">Used</span>
+                    <span th:if="${note.remainingAmount > 0}" class="badge bg-success">
+                        Unused (<span th:text="${#numbers.formatCurrency(note.remainingAmount)}"></span>)
+                    </span>
+                </td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(creditNotes)}">
+                <td colspan="5" class="text-center text-muted">No credit notes found for this invoice.</td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

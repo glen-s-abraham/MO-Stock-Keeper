@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>Customer Invoices</title>
+</head>
+<body>
+<div layout:fragment="content">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            Invoices: <span th:text="${customer.name}">Customer Name</span>
+        </h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <a th:href="@{/invoices}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-striped table-sm">
+            <thead>
+            <tr>
+                <th>Invoice #</th>
+                <th>Date</th>
+                <th class="text-end">Total Amount</th>
+                <th class="text-end">Paid</th>
+                <th class="text-end">Balance Due</th>
+                <th class="text-center">Status</th>
+                <th class="text-center">Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="invoice : ${invoices}">
+                <td th:text="${invoice.invoiceNumber}">INV-001</td>
+                <td th:text="${#temporals.format(invoice.invoiceDate, 'yyyy-MM-dd')}">2023-01-01</td>
+                <td class="text-end" th:text="${#numbers.formatCurrency(invoice.totalAmount)}">$100.00</td>
+                <td class="text-end" th:text="${#numbers.formatCurrency(invoice.amountPaid)}">$0.00</td>
+                <td class="text-end" th:text="${#numbers.formatCurrency(invoice.balanceDue)}">$100.00</td>
+                <td class="text-center">
+                    <span th:if="${invoice.status.name() == 'PAID'}" class="badge bg-success">Paid</span>
+                    <span th:if="${invoice.status.name() == 'PARTIALLY_PAID'}" class="badge bg-warning text-dark">Partial</span>
+                    <span th:if="${invoice.status.name() == 'UNPAID'}" class="badge bg-danger">Unpaid</span>
+                </td>
+                <td class="text-center">
+                    <a th:href="@{/invoices/{id}(id=${invoice.id})}" class="btn btn-sm btn-outline-info me-1" title="View Details">
+                        <i class="bi bi-eye"></i> View
+                    </a>
+                    <a th:href="@{/sales/{id}(id=${invoice.salesOrder.id})}" class="btn btn-sm btn-outline-primary" title="View Order">
+                        <i class="bi bi-cart"></i> Order
+                    </a>
+                </td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(invoices)}">
+                <td colspan="7" class="text-center text-muted">No invoices found for this customer.</td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

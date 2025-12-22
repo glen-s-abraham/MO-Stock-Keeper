@@ -7,7 +7,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.UUID;
 
 @Service
 public class ReturnsService {
@@ -15,14 +14,12 @@ public class ReturnsService {
     private final InventoryUnitRepository unitRepository;
     private final InvoiceRepository invoiceRepository;
     private final CreditNoteRepository creditNoteRepository;
-    private final PaymentRepository paymentRepository;
 
     public ReturnsService(InventoryUnitRepository unitRepository, InvoiceRepository invoiceRepository,
-            CreditNoteRepository creditNoteRepository, PaymentRepository paymentRepository) {
+            CreditNoteRepository creditNoteRepository) {
         this.unitRepository = unitRepository;
         this.invoiceRepository = invoiceRepository;
         this.creditNoteRepository = creditNoteRepository;
-        this.paymentRepository = paymentRepository;
     }
 
     @Transactional
@@ -47,43 +44,38 @@ public class ReturnsService {
 
         // Value per unit?
         // Assume simple division or fixed price. Invoice.total / SO.units?
-        // If SO has 10 units and total 100, then 10 per unit.
-        BigDecimal unitPrice = invoice.getTotalAmount().divide(new BigDecimal(so.getAllocatedUnits().size()), 2,
-                java.math.RoundingMode.HALF_UP);
+        BigDecimal totalUnits = new BigDecimal(so.getAllocatedUnits().size());
+        BigDecimal unitPrice = invoice.getTotalAmount().divide(totalUnits, 2, java.math.RoundingMode.HALF_UP);
+
+        // Calculate Tax Portion
+        BigDecimal totalTax = invoice.getTaxAmount() != null ? invoice.getTaxAmount() : BigDecimal.ZERO;
+        BigDecimal unitTax = BigDecimal.ZERO;
+        if (totalTax.compareTo(BigDecimal.ZERO) > 0) {
+            unitTax = totalTax.divide(totalUnits, 2, java.math.RoundingMode.HALF_UP);
+        }
 
         // Update Unit Status
         unit.setStatus(InventoryStatus.RETURNED);
         unitRepository.save(unit);
 
-        // Create Credit Note (Always create for tracking)
+        // Create Credit Note
         CreditNote note = new CreditNote();
         note.setCustomer(invoice.getCustomer());
         note.setOriginalInvoice(invoice);
         note.setAmount(unitPrice);
+        note.setTaxAmount(unitTax);
         note.setNoteDate(LocalDate.now());
         note.setReason(reason != null ? reason : "Return: " + uuid);
         note.setNoteNumber("CN-" + System.currentTimeMillis());
-        note.setUsed(true); // Default to used
+
+        // UNIFIED LOGIC: Always Issue Store Credit (Unused)
+        // We do NOT auto-deduct from the invoice logic anymore.
+        // The user must manually "Redeem" this credit against the invoice later if they
+        // wish.
+        note.setUsed(false);
+        note.setRemainingAmount(unitPrice);
+
         creditNoteRepository.save(note);
-
-        // Adjust Logic based on Payment Status
-        if (invoice.getStatus() == InvoiceStatus.PAID) {
-            // REFUND Logic: Create a negative payment
-            Payment refund = new Payment();
-            refund.setCustomer(invoice.getCustomer());
-            refund.setAmount(unitPrice.negate()); // Negative amount
-            refund.setPaymentDate(LocalDate.now());
-            refund.setPaymentMethod(PaymentMethod.CASH); // Default to Cash refund or tracked elsewhere
-            refund.setReferenceNumber("Refund for: " + uuid);
-            paymentRepository.save(refund);
-
-            // Note: We do NOT change invoice balance or status. It remains PAID.
-
-        } else {
-            // CREDIT/UNPAID Logic: Reduce balance
-            invoice.setBalanceDue(invoice.getBalanceDue().subtract(unitPrice));
-            invoiceRepository.save(invoice);
-        }
 
         return note;
     }

@@ -18,12 +18,12 @@
                             <h6 class="text-uppercase text-muted fw-bold small mb-4">Batch Information</h6>
                             
                             <div class="mb-3">
-                                <label class="form-label text-muted small">Product</label>
-                                <select class="form-select form-select-lg" name="productId" required>
-                                    <option value="">Select Product...</option>
-                                    <option th:each="p : ${products}" th:value="${p.id}" th:text="${p.name}"></option>
-                                </select>
-                            </div>
+                    <label class="form-label">Product</label>
+                    <select class="form-select searchable" id="product" name="productId" required placeholder="Select Product...">
+                        <option value="">Choose product...</option>
+                        <option th:each="p : ${products}" th:value="${p.id}" th:text="${p.name}"></option>
+                    </select>
+                </div>
                             
                             <div class="mb-3">
                                 <label class="form-label text-muted small">Quantity (Units/Boxes)</label>

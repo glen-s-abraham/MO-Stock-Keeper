@@ -27,6 +27,9 @@ public class BatchService {
 
     @Transactional
     public HarvestBatch createBatch(Product product, int quantity, LocalDate batchDate) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be positive");
+        }
         // Create Batch
         HarvestBatch batch = new HarvestBatch();
         batch.setProduct(product);
@@ -70,6 +73,7 @@ public class BatchService {
     }
 
     @Transactional
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public void deleteBatch(Long batchId) throws Exception {
         HarvestBatch batch = batchRepository.findById(batchId).orElseThrow();
 

@@ -15,5 +15,9 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 
     Optional<Invoice> findBySalesOrder(com.mushroom.stockkeeper.model.SalesOrder salesOrder);
 
+    Optional<Invoice> findTopByOrderByIdDesc();
+
     Optional<Invoice> findTopByCustomerIdOrderByInvoiceDateDesc(Long customerId);
+
+    java.util.Optional<List<Invoice>> findByCustomerIdOrderByInvoiceDateDesc(Long customerId);
 }
