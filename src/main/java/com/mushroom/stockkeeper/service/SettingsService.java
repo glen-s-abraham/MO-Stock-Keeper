@@ -18,7 +18,7 @@ public class SettingsService {
     public static final String KEY_CUSTOM_LABEL_WIDTH = "custom_label_width";
     public static final String KEY_CUSTOM_LABEL_HEIGHT = "custom_label_height";
 
-    public SettingsService(AppSettingRepository appSettingRepository, AuditService auditService) {
+    public SettingsService(AppSettingRepository appSettingRepository) {
         this.appSettingRepository = appSettingRepository;
     }
 

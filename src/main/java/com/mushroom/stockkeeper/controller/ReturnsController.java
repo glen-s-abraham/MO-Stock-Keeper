@@ -13,10 +13,10 @@ import com.mushroom.stockkeeper.dto.BatchReturnRequest;
 public class ReturnsController {
 
     private final ReturnsService returnsService;
-    private final com.mushroom.stockkeeper.repository.InventoryUnitRepository unitRepository;
+    private final InventoryUnitRepository unitRepository;
 
     public ReturnsController(ReturnsService returnsService,
-            com.mushroom.stockkeeper.repository.InventoryUnitRepository unitRepository) {
+            InventoryUnitRepository unitRepository) {
         this.returnsService = returnsService;
         this.unitRepository = unitRepository;
     }
@@ -60,7 +60,7 @@ public class ReturnsController {
     @PostMapping("/batch")
     @ResponseBody
     public java.util.Map<String, Object> batchProcess(
-            @RequestBody com.mushroom.stockkeeper.dto.BatchReturnRequest request) {
+            @RequestBody BatchReturnRequest request) {
         int successCount = 0;
         int failCount = 0;
         StringBuilder errors = new StringBuilder();
