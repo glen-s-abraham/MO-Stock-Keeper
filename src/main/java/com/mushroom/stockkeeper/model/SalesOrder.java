@@ -47,6 +47,9 @@ public class SalesOrder {
     // RETAIL / WHOLESALE
     private String orderType;
 
+    @Version
+    private Long version;
+
     // Store intended payment method (e.g. Cash/UPI) for Retail auto-finalize
     private String paymentMethod;
 

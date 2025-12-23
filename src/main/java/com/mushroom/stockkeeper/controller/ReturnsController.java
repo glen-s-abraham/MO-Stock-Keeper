@@ -1,11 +1,9 @@
 package com.mushroom.stockkeeper.controller;
 
-import com.mushroom.stockkeeper.model.CreditNote;
 import com.mushroom.stockkeeper.service.ReturnsService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import com.mushroom.stockkeeper.repository.InventoryUnitRepository;
 import com.mushroom.stockkeeper.model.InventoryStatus;
 import com.mushroom.stockkeeper.dto.BatchReturnRequest;
@@ -83,5 +81,27 @@ public class ReturnsController {
                 "failed", failCount,
                 "errors", errors.toString(),
                 "redirect", "/returns");
+    }
+
+    @PostMapping("/{id}/restock")
+    @ResponseBody
+    public java.util.Map<String, Object> restockItem(@PathVariable Long id) {
+        try {
+            returnsService.restockUnit(id);
+            return java.util.Map.of("success", true);
+        } catch (Exception e) {
+            return java.util.Map.of("success", false, "message", e.getMessage());
+        }
+    }
+
+    @PostMapping("/{id}/spoil")
+    @ResponseBody
+    public java.util.Map<String, Object> spoilItem(@PathVariable Long id) {
+        try {
+            returnsService.spoilUnit(id);
+            return java.util.Map.of("success", true);
+        } catch (Exception e) {
+            return java.util.Map.of("success", false, "message", e.getMessage());
+        }
     }
 }

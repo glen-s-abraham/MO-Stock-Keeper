@@ -15,11 +15,14 @@ public class ReturnsService {
     private final InvoiceRepository invoiceRepository;
     private final CreditNoteRepository creditNoteRepository;
 
+    private final AuditService auditService;
+
     public ReturnsService(InventoryUnitRepository unitRepository, InvoiceRepository invoiceRepository,
-            CreditNoteRepository creditNoteRepository) {
+            CreditNoteRepository creditNoteRepository, AuditService auditService) {
         this.unitRepository = unitRepository;
         this.invoiceRepository = invoiceRepository;
         this.creditNoteRepository = creditNoteRepository;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -94,5 +97,39 @@ public class ReturnsService {
         creditNoteRepository.save(note);
 
         return note;
+    }
+
+    @Transactional
+    public void restockUnit(Long unitId) throws Exception {
+        InventoryUnit unit = unitRepository.findById(unitId).orElseThrow();
+        if (unit.getStatus() != InventoryStatus.RETURNED) {
+            throw new Exception("Only RETURNED units can be restocked.");
+        }
+        unit.setStatus(InventoryStatus.AVAILABLE);
+        unit.setSalesOrder(null);
+        unit.setSoldPrice(null);
+        unitRepository.save(unit);
+        auditService.log("UNIT_RESTOCKED", "Restocked Unit " + unit.getUuid() + " to Available Inventory");
+    }
+
+    @Transactional
+    public void spoilUnit(Long unitId) throws Exception {
+        InventoryUnit unit = unitRepository.findById(unitId).orElseThrow();
+        if (unit.getStatus() != InventoryStatus.RETURNED) {
+            throw new Exception("Only RETURNED units can be marked as spoiled (from Returns Module).");
+        }
+        unit.setStatus(InventoryStatus.SPOILED);
+        // We keep SalesOrder link for history? Or unlink?
+        // Usually SPOILED means dead stock. Unlink makes sense to remove from "Active
+        // Sales" scope but
+        // for traceability "Why was it spoiled?" -> "Because it was returned damaged".
+        // Let's Keep SalesOrder link if possible?
+        // Actually InventoryUnit.salesOrder is for "Current Allocation".
+        // If we spoil it, it's no longer part of that order's fulfillment (technically
+        // returned).
+        // Let's unlink to be clean.
+        unit.setSalesOrder(null);
+        unitRepository.save(unit);
+        auditService.log("UNIT_SPOILED", "Marked Returned Unit " + unit.getUuid() + " as SPOILED");
     }
 }

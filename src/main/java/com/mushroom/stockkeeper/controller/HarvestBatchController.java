@@ -26,14 +26,17 @@ public class HarvestBatchController {
     private final InventoryUnitRepository unitRepository;
     private final BatchService batchService;
     private final QrCodeService qrCodeService;
+    private final com.mushroom.stockkeeper.service.SettingsService settingsService;
 
     public HarvestBatchController(HarvestBatchRepository batchRepository, ProductRepository productRepository,
-            InventoryUnitRepository unitRepository, BatchService batchService, QrCodeService qrCodeService) {
+            InventoryUnitRepository unitRepository, BatchService batchService, QrCodeService qrCodeService,
+            com.mushroom.stockkeeper.service.SettingsService settingsService) {
         this.batchRepository = batchRepository;
         this.productRepository = productRepository;
         this.unitRepository = unitRepository;
         this.batchService = batchService;
         this.qrCodeService = qrCodeService;
+        this.settingsService = settingsService;
     }
 
     @GetMapping
@@ -190,6 +193,11 @@ public class HarvestBatchController {
         model.addAttribute("batch", batch);
         model.addAttribute("units", units);
         model.addAttribute("qrCodes", qrCodes);
+        model.addAttribute("companyName", settingsService.getCompanyName());
+        model.addAttribute("contactNumber", settingsService.getContactNumber());
+        model.addAttribute("labelSheetSize", settingsService.getLabelSheetSize());
+        model.addAttribute("customLabelWidth", settingsService.getCustomLabelWidth());
+        model.addAttribute("customLabelHeight", settingsService.getCustomLabelHeight());
         return "batches/print";
     }
 

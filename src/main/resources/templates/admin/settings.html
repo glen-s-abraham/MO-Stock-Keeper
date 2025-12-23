@@ -45,6 +45,45 @@
                             <div class="form-text">Default: ₹ (Rupee)</div>
                         </div>
                     </div>
+
+                    <h5 class="mt-4 mb-3 border-bottom pb-2">Label Print Settings</h5>
+                    <div class="row g-3">
+                         <div class="col-md-6">
+                            <label class="form-label">Label Sheet Format</label>
+                            <select class="form-select" name="label_sheet_size" id="labelSheetSize" onchange="toggleDimensions()">
+                                <option value="A4_24" th:selected="${settings.get('label_sheet_size') == 'A4_24'}">A4 - Grid (3x8 - 24 Labels)</option>
+                                <option value="A4_40" th:selected="${settings.get('label_sheet_size') == 'A4_40'}">A4 - Grid (4x10 - 40 Labels)</option>
+                                <option value="THERMAL_4x6" th:selected="${settings.get('label_sheet_size') == 'THERMAL_4x6'}">Thermal Roll - 4x6" (100x150mm)</option>
+                                <option value="THERMAL_2x1" th:selected="${settings.get('label_sheet_size') == 'THERMAL_2x1'}">Thermal Roll - 2x1" (50x25mm)</option>
+                                <option value="THERMAL_CUSTOM" th:selected="${settings.get('label_sheet_size') == 'THERMAL_CUSTOM'}">Thermal Roll - Custom Size</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Default Printer Name</label>
+                            <input type="text" class="form-control" name="target_printer" th:value="${settings.get('target_printer')}" placeholder="e.g. ZDesigner GK420t">
+                            <div class="form-text">Optional: Matches printer name in OS dialog.</div>
+                        </div>
+                        
+                        <!-- Custom Dimensions (Hidden unless THERMAL_CUSTOM) -->
+                        <div class="col-6 col-md-3 custom-dims" style="display:none;">
+                            <label class="form-label">Width (mm)</label>
+                            <input type="number" class="form-control" name="custom_label_width" th:value="${settings.get('custom_label_width')}" placeholder="100">
+                        </div>
+                        <div class="col-6 col-md-3 custom-dims" style="display:none;">
+                            <label class="form-label">Height (mm)</label>
+                            <input type="number" class="form-control" name="custom_label_height" th:value="${settings.get('custom_label_height')}" placeholder="150">
+                        </div>
+                    </div>
+
+                    <script>
+                        function toggleDimensions() {
+                            const val = document.getElementById('labelSheetSize').value;
+                            const dims = document.querySelectorAll('.custom-dims');
+                            dims.forEach(el => el.style.display = (val === 'THERMAL_CUSTOM') ? 'block' : 'none');
+                        }
+                        // Run on load
+                        toggleDimensions();
+                    </script>
                     
                     <div class="mt-4 text-end">
                         <button type="submit" class="btn btn-primary"><i class="bi bi-save me-2"></i>Save Settings</button>

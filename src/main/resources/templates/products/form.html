@@ -47,7 +47,12 @@
                                 
                                 <div class="col-12">
                                     <label class="form-label text-muted small">Description</label>
-                                    <textarea class="form-control" th:field="*{description}" rows="3" placeholder="Optional description..."></textarea>
+                                    <textarea class="form-control" th:field="*{description}" rows="2" placeholder="Optional description..."></textarea>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label text-muted small">Storage Instructions (For Label)</label>
+                                    <input type="text" class="form-control" th:field="*{storageInstructions}" placeholder="e.g. Keep Refrigerated at 4°C">
                                 </div>
                             </div>
                             

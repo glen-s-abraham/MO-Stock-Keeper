@@ -1,20 +1,24 @@
 package com.mushroom.stockkeeper.controller;
 
-import com.mushroom.stockkeeper.model.Customer;
-import com.mushroom.stockkeeper.model.Invoice;
-import com.mushroom.stockkeeper.model.InvoiceStatus;
-import com.mushroom.stockkeeper.model.PaymentMethod;
+import com.mushroom.stockkeeper.dto.TransactionDTO;
+import com.mushroom.stockkeeper.model.*;
+import com.mushroom.stockkeeper.repository.CreditNoteRepository;
 import com.mushroom.stockkeeper.repository.CustomerRepository;
 import com.mushroom.stockkeeper.repository.InvoiceRepository;
+import com.mushroom.stockkeeper.repository.PaymentRepository;
 import com.mushroom.stockkeeper.service.PaymentService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,13 +30,13 @@ public class CollectionsController {
     private final PaymentService paymentService;
     private final InvoiceRepository invoiceRepository;
     private final CustomerRepository customerRepository;
-    private final com.mushroom.stockkeeper.repository.CreditNoteRepository creditNoteRepository;
-    private final com.mushroom.stockkeeper.repository.PaymentRepository paymentRepository;
+    private final CreditNoteRepository creditNoteRepository;
+    private final PaymentRepository paymentRepository;
 
     public CollectionsController(PaymentService paymentService, InvoiceRepository invoiceRepository,
             CustomerRepository customerRepository,
-            com.mushroom.stockkeeper.repository.CreditNoteRepository creditNoteRepository,
-            com.mushroom.stockkeeper.repository.PaymentRepository paymentRepository) {
+            CreditNoteRepository creditNoteRepository,
+            PaymentRepository paymentRepository) {
         this.paymentService = paymentService;
         this.invoiceRepository = invoiceRepository;
         this.customerRepository = customerRepository;
@@ -44,7 +48,7 @@ public class CollectionsController {
     public String index(Model model) {
         // Aging Report Logic: WHOLESALE Customers Only
         List<Customer> customers = customerRepository
-                .findByTypeAndIsHiddenFalse(com.mushroom.stockkeeper.model.CustomerType.WHOLESALE);
+                .findByTypeAndIsHiddenFalse(CustomerType.WHOLESALE);
 
         // Fetch aggregated data efficiently
         List<Object[]> balancesData = invoiceRepository.findWholesaleOutstandingBalances(); // [customerId, totalDue,
@@ -52,9 +56,9 @@ public class CollectionsController {
         List<Object[]> creditsData = creditNoteRepository.findWholesaleRemainingCredits(); // [customerId, totalCredit]
 
         // Map aggregated data
-        Map<Long, BigDecimal> balances = new HashMap<>(); // Net Balance (Due - Credit)
+        Map<Long, BigDecimal> balances = new HashMap<>();
         // User requested Gross Balance (Due only).
-        // Logic below stored Total Due in 'balances' map.
+        // Logic below stores Total Due in 'balances' map.
 
         Map<Long, BigDecimal> credits = new HashMap<>(); // Just Credits
 
@@ -67,9 +71,7 @@ public class CollectionsController {
         }
 
         // Fill gaps for customers with 0 balance/credit to ensure map keys exist if
-        // needed?
-        // Actually, the view likely does balances.get(c.id).
-        // Let's ensure strict alignment with customers list:
+        // needed
         for (Customer c : customers) {
             if (!balances.containsKey(c.getId()))
                 balances.put(c.getId(), BigDecimal.ZERO);
@@ -79,7 +81,7 @@ public class CollectionsController {
 
         // Retail Sales Segment (Recent Invoices)
         List<Invoice> retailInvoices = invoiceRepository.findTop20BySalesOrderOrderTypeOrderByInvoiceDateDesc(
-                com.mushroom.stockkeeper.model.CustomerType.RETAIL.name());
+                CustomerType.RETAIL.name());
 
         model.addAttribute("customers", customers);
         model.addAttribute("balances", balances);
@@ -92,7 +94,7 @@ public class CollectionsController {
     public String paymentForm(Model model) {
         // Only allow recording payments for Wholesale customers (Visible)
         List<Customer> customers = customerRepository
-                .findByTypeAndIsHiddenFalse(com.mushroom.stockkeeper.model.CustomerType.WHOLESALE);
+                .findByTypeAndIsHiddenFalse(CustomerType.WHOLESALE);
         Map<Long, BigDecimal> balances = new HashMap<>();
 
         for (Customer c : customers) {
@@ -116,7 +118,7 @@ public class CollectionsController {
             @RequestParam BigDecimal amount,
             @RequestParam PaymentMethod method,
             @RequestParam String reference,
-            org.springframework.web.servlet.mvc.support.RedirectAttributes redirectAttributes) {
+            RedirectAttributes redirectAttributes) {
 
         // Validate Amount
         // Allow payment even if amount > due (creates credit)
@@ -129,7 +131,7 @@ public class CollectionsController {
 
     @PostMapping("/redeem")
     public String redeemCredits(@RequestParam Long customerId,
-            org.springframework.web.servlet.mvc.support.RedirectAttributes redirectAttributes) {
+            RedirectAttributes redirectAttributes) {
         // Trigger generic settlement with 0 cash injection
         paymentService.settleAccount(customerId, BigDecimal.ZERO);
         redirectAttributes.addFlashAttribute("success", "Credits redeemed and applied to outstanding balance.");
@@ -137,9 +139,9 @@ public class CollectionsController {
     }
 
     @PostMapping("/payment/void")
-    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public String voidPayment(@RequestParam Long paymentId,
-            org.springframework.web.servlet.mvc.support.RedirectAttributes redirectAttributes) {
+            RedirectAttributes redirectAttributes) {
         paymentService.voidPayment(paymentId);
         redirectAttributes.addFlashAttribute("success", "Payment reversed.");
         return "redirect:/collections";
@@ -149,12 +151,12 @@ public class CollectionsController {
     public String statement(@RequestParam Long customerId, Model model) {
         Customer customer = customerRepository.findById(customerId).orElseThrow();
 
-        List<com.mushroom.stockkeeper.dto.TransactionDTO> transactions = new java.util.ArrayList<>();
+        List<TransactionDTO> transactions = new ArrayList<>();
 
         // 1. Invoices (Debits)
         List<Invoice> invoices = invoiceRepository.findByCustomerIdAndStatusNot(customerId, null); // All statuses
         for (Invoice inv : invoices) {
-            transactions.add(new com.mushroom.stockkeeper.dto.TransactionDTO(
+            transactions.add(new TransactionDTO(
                     inv.getInvoiceDate(),
                     "INVOICE",
                     inv.getInvoiceNumber(),
@@ -164,10 +166,10 @@ public class CollectionsController {
         }
 
         // 2. Payments (Credits)
-        List<com.mushroom.stockkeeper.model.Payment> payments = paymentRepository.findByCustomerId(customerId);
-        for (com.mushroom.stockkeeper.model.Payment p : payments) {
+        List<Payment> payments = paymentRepository.findByCustomerId(customerId);
+        for (Payment p : payments) {
             String desc = p.isReversed() ? "VOIDED" : "";
-            transactions.add(new com.mushroom.stockkeeper.dto.TransactionDTO(
+            transactions.add(new TransactionDTO(
                     p.getPaymentDate() != null ? p.getPaymentDate() : p.getCreatedAt().toLocalDate(),
                     "PAYMENT",
                     p.getReferenceNumber(),
@@ -175,13 +177,12 @@ public class CollectionsController {
                     BigDecimal.ZERO,
                     p.getAmount(),
                     p.getId(),
-                    p.isReversed())); // If reversed, we need to show the reversal?
+                    p.isReversed()));
+
             // Logic: If Reversed, the Payment exists (Credit). We need a Reversal (Debit)
             // to offset it.
-            // OR: We just show it as effective 0?
-            // Standard: Show Payment (Cr), then Reversal (Dr).
             if (p.isReversed()) {
-                transactions.add(new com.mushroom.stockkeeper.dto.TransactionDTO(
+                transactions.add(new TransactionDTO(
                         p.getCreatedAt().toLocalDate(), // Reversal happens at create time of void? Don't track void
                                                         // date. Use today?
                         "REVERSAL",
@@ -193,12 +194,12 @@ public class CollectionsController {
         }
 
         // 3. Sort
-        transactions.sort(java.util.Comparator.comparing(com.mushroom.stockkeeper.dto.TransactionDTO::getDate)
-                .thenComparing(com.mushroom.stockkeeper.dto.TransactionDTO::getReference));
+        transactions.sort(Comparator.comparing(TransactionDTO::getDate)
+                .thenComparing(TransactionDTO::getReference));
 
         // 4. Running Balance
         BigDecimal balance = BigDecimal.ZERO;
-        for (com.mushroom.stockkeeper.dto.TransactionDTO t : transactions) {
+        for (TransactionDTO t : transactions) {
             balance = balance.add(t.getDebit()).subtract(t.getCredit());
             t.setBalance(balance);
         }

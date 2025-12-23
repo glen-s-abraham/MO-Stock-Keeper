@@ -180,33 +180,33 @@ public class SalesService {
         invoice.setSalesOrder(so);
         invoice.setCustomer(so.getCustomer());
         invoice.setInvoiceDate(LocalDate.now());
-        // Sequential Numbering Logic (Robust: Max + 1)
-        long nextNum = 1;
-        java.util.Optional<Invoice> lastInvoice = invoiceRepository.findTopByOrderByIdDesc();
-        if (lastInvoice.isPresent()) {
-            String lastNumStr = lastInvoice.get().getInvoiceNumber();
-            // Expected format INV-XXXXX
-            if (lastNumStr.startsWith("INV-")) {
-                try {
-                    long lastId = Long.parseLong(lastNumStr.substring(4));
-                    nextNum = lastId + 1;
-                } catch (NumberFormatException e) {
-                    // Fallback if format is weird, rely on count + 1 or timestamp?
-                    // Ideally log warning. For now, continue safe.
-                    nextNum = invoiceRepository.count() + 1;
-                }
-            }
-        }
-        invoice.setInvoiceNumber(String.format("INV-%05d", nextNum));
+
+        // 1. Safe Numbering Strategy: Save with Temp -> Update with ID
+        // Prevents duplicates (Race Condition Fix)
+        invoice.setInvoiceNumber("TEMP-" + java.util.UUID.randomUUID());
 
         invoice.setTotalAmount(total);
 
+        // Determine Status logic
         if (isPaid) {
             invoice.setStatus(InvoiceStatus.PAID);
             invoice.setAmountPaid(total);
             invoice.setBalanceDue(BigDecimal.ZERO);
+        } else {
+            invoice.setStatus(InvoiceStatus.UNPAID);
+            invoice.setAmountPaid(BigDecimal.ZERO);
+            invoice.setBalanceDue(total);
+        }
 
-            // Create Payment Record
+        // First Save to generate ID
+        invoice = invoiceRepository.save(invoice);
+
+        // Update Number based on ID
+        invoice.setInvoiceNumber(String.format("INV-%05d", invoice.getId()));
+        invoiceRepository.save(invoice);
+
+        // Create Payment If Paid
+        if (isPaid) {
             Payment payment = new Payment();
             payment.setCustomer(so.getCustomer());
             payment.setAmount(total);
@@ -218,14 +218,7 @@ public class SalesService {
             }
             payment.setReferenceNumber("Auto-Payment for " + invoice.getInvoiceNumber());
             paymentRepository.save(payment);
-
-        } else {
-            invoice.setStatus(InvoiceStatus.UNPAID);
-            invoice.setAmountPaid(BigDecimal.ZERO);
-            invoice.setBalanceDue(total);
         }
-
-        invoiceRepository.save(invoice);
 
         // Update SO Status
         so.setStatus(SalesOrderStatus.INVOICED);

@@ -1,6 +1,5 @@
 package com.mushroom.stockkeeper.service;
 
-import com.mushroom.stockkeeper.service.AuditService; // Explicit import
 import com.mushroom.stockkeeper.model.InvoiceStatus;
 import com.mushroom.stockkeeper.model.*;
 import com.mushroom.stockkeeper.repository.*;
@@ -15,15 +14,22 @@ import java.util.Optional;
 @Service
 public class PaymentService {
 
+    private final PaymentRepository paymentRepository;
+    private final InvoiceRepository invoiceRepository;
+    private final CustomerRepository customerRepository;
+    private final CreditNoteRepository creditNoteRepository;
+    private final PaymentAllocationRepository paymentAllocationRepository;
     private final AuditService auditService;
 
     public PaymentService(PaymentRepository paymentRepository, InvoiceRepository invoiceRepository,
             CustomerRepository customerRepository, CreditNoteRepository creditNoteRepository,
+            PaymentAllocationRepository paymentAllocationRepository,
             AuditService auditService) {
         this.paymentRepository = paymentRepository;
         this.invoiceRepository = invoiceRepository;
         this.customerRepository = customerRepository;
         this.creditNoteRepository = creditNoteRepository;
+        this.paymentAllocationRepository = paymentAllocationRepository;
         this.auditService = auditService;
     }
 
@@ -167,6 +173,15 @@ public class PaymentService {
 
             BigDecimal allocation = due.min(remainingAmount);
 
+            // Record Strict Allocation
+            if (sourcePayment != null && allocation.compareTo(BigDecimal.ZERO) > 0) {
+                PaymentAllocation pa = new PaymentAllocation();
+                pa.setPayment(sourcePayment);
+                pa.setInvoice(invoice);
+                pa.setAmount(allocation);
+                paymentAllocationRepository.save(pa);
+            }
+
             invoice.setAmountPaid(invoice.getAmountPaid().add(allocation));
             invoice.setBalanceDue(invoice.getBalanceDue().subtract(allocation));
 
@@ -251,44 +266,73 @@ public class PaymentService {
         }
 
         // 3. Reverse the Financial Impact (Add Debt Back)
-        BigDecimal amountToRestore = payment.getAmount();
-        List<Invoice> invoices = invoiceRepository.findByCustomerIdAndStatusNot(payment.getCustomer().getId(),
-                InvoiceStatus.UNPAID); // Get Paid/Partial
+        // 3. Reverse the Financial Impact (Add Debt Back)
+        // PRECISE REVERSAL via Allocations
+        List<PaymentAllocation> allocations = paymentAllocationRepository.findByPayment(payment);
 
-        invoices.sort(Comparator.comparing(Invoice::getInvoiceDate).reversed());
+        if (!allocations.isEmpty()) {
+            for (PaymentAllocation pa : allocations) {
+                Invoice invoice = pa.getInvoice();
+                BigDecimal restore = pa.getAmount();
 
-        for (Invoice invoice : invoices) {
-            if (amountToRestore.compareTo(BigDecimal.ZERO) <= 0)
-                break;
+                invoice.setBalanceDue(invoice.getBalanceDue().add(restore));
+                invoice.setAmountPaid(invoice.getAmountPaid().subtract(restore));
 
-            BigDecimal alreadyPaid = invoice.getTotalAmount().subtract(invoice.getBalanceDue());
-            if (alreadyPaid.compareTo(BigDecimal.ZERO) <= 0)
-                continue;
-
-            BigDecimal restore = amountToRestore.min(alreadyPaid);
-
-            invoice.setBalanceDue(invoice.getBalanceDue().add(restore));
-            invoice.setAmountPaid(invoice.getAmountPaid().subtract(restore));
-
-            if (invoice.getBalanceDue().compareTo(BigDecimal.ZERO) == 0) {
-                invoice.setStatus(InvoiceStatus.PAID);
-            } else if (invoice.getBalanceDue().compareTo(invoice.getTotalAmount()) >= 0) {
-                // Fully Unpaid
-                invoice.setStatus(InvoiceStatus.UNPAID);
-                if (invoice.getBalanceDue().compareTo(invoice.getTotalAmount()) > 0) {
-                    invoice.setBalanceDue(invoice.getTotalAmount());
+                // Recalculate Status
+                if (invoice.getBalanceDue().compareTo(BigDecimal.ZERO) == 0) {
+                    invoice.setStatus(InvoiceStatus.PAID);
+                } else if (invoice.getBalanceDue().compareTo(invoice.getTotalAmount()) >= 0) {
+                    invoice.setStatus(InvoiceStatus.UNPAID);
+                } else {
+                    invoice.setStatus(InvoiceStatus.PARTIALLY_PAID);
                 }
-            } else {
-                invoice.setStatus(InvoiceStatus.PARTIALLY_PAID);
+                invoiceRepository.save(invoice);
+                // We don't delete the allocation record; keeping it as history of what WAS paid
+                // is fine,
+                // or we could mark it voids. Since Payment is reversed, the allocation is
+                // implicitly void.
+            }
+        } else {
+            // FALLBACK: Legacy "Debt Shifting" for old payments
+            BigDecimal amountToRestore = payment.getAmount();
+            List<Invoice> invoices = invoiceRepository.findByCustomerIdAndStatusNot(payment.getCustomer().getId(),
+                    InvoiceStatus.UNPAID); // Get Paid/Partial
+
+            invoices.sort(Comparator.comparing(Invoice::getInvoiceDate).reversed());
+
+            for (Invoice invoice : invoices) {
+                if (amountToRestore.compareTo(BigDecimal.ZERO) <= 0)
+                    break;
+
+                BigDecimal alreadyPaid = invoice.getTotalAmount().subtract(invoice.getBalanceDue());
+                if (alreadyPaid.compareTo(BigDecimal.ZERO) <= 0)
+                    continue;
+
+                BigDecimal restore = amountToRestore.min(alreadyPaid);
+
+                invoice.setBalanceDue(invoice.getBalanceDue().add(restore));
+                invoice.setAmountPaid(invoice.getAmountPaid().subtract(restore));
+
+                if (invoice.getBalanceDue().compareTo(BigDecimal.ZERO) == 0) {
+                    invoice.setStatus(InvoiceStatus.PAID);
+                } else if (invoice.getBalanceDue().compareTo(invoice.getTotalAmount()) >= 0) {
+                    // Fully Unpaid
+                    invoice.setStatus(InvoiceStatus.UNPAID);
+                    if (invoice.getBalanceDue().compareTo(invoice.getTotalAmount()) > 0) {
+                        invoice.setBalanceDue(invoice.getTotalAmount());
+                    }
+                } else {
+                    invoice.setStatus(InvoiceStatus.PARTIALLY_PAID);
+                }
+
+                invoiceRepository.save(invoice);
+                amountToRestore = amountToRestore.subtract(restore);
             }
 
-            invoiceRepository.save(invoice);
-            amountToRestore = amountToRestore.subtract(restore);
-        }
-
-        if (amountToRestore.compareTo(BigDecimal.ZERO) > 0) {
-            auditService.log("VOID_WARNING", "Voided payment " + payment.getReferenceNumber()
-                    + " exceeded restorable invoice debt by " + amountToRestore);
+            if (amountToRestore.compareTo(BigDecimal.ZERO) > 0) {
+                auditService.log("VOID_WARNING", "Voided payment " + payment.getReferenceNumber()
+                        + " exceeded restorable invoice debt by " + amountToRestore);
+            }
         }
     }
 }

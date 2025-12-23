@@ -6,6 +6,8 @@ import lombok.Data;
 @Entity
 @Table(name = "customers")
 @Data
+@org.hibernate.annotations.SQLDelete(sql = "UPDATE customers SET deleted = true WHERE id = ?")
+@org.hibernate.annotations.SQLRestriction("deleted = false")
 public class Customer {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,4 +28,6 @@ public class Customer {
 
     @Column(precision = 10, scale = 2)
     private java.math.BigDecimal creditLimit; // Max allowed outstanding balance
+
+    private boolean deleted = false;
 }
