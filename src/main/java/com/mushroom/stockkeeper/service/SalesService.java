@@ -78,6 +78,24 @@ public class SalesService {
         // Link
         unit.setSalesOrder(so);
         unit.setStatus(InventoryStatus.ALLOCATED);
+
+        // Auto-Apply Pricing based on Order Type
+        BigDecimal price = BigDecimal.ZERO;
+        if (unit.getBatch() != null && unit.getBatch().getProduct() != null) {
+            Product product = unit.getBatch().getProduct();
+            // Check if Wholesale
+            // We can check orderType OR customer type. OrderType is explicit.
+            boolean isWholesale = "WHOLESALE".equalsIgnoreCase(so.getOrderType());
+
+            if (isWholesale) {
+                price = product.getWholesalePrice() != null ? product.getWholesalePrice() : BigDecimal.ZERO;
+            } else {
+                // Retail Default
+                price = product.getRetailPrice() != null ? product.getRetailPrice() : BigDecimal.ZERO;
+            }
+        }
+        unit.setSoldPrice(price);
+
         unitRepository.save(unit);
 
         // Update SO status if needed (e.g. to Picking)

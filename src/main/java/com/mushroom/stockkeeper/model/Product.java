@@ -31,5 +31,12 @@ public class Product {
     // Default shelf life in days
     private Integer defaultExpiryDays = 7;
 
+    // Pricing
+    @Column(precision = 10, scale = 2)
+    private java.math.BigDecimal retailPrice;
+
+    @Column(precision = 10, scale = 2)
+    private java.math.BigDecimal wholesalePrice;
+
     private boolean deleted = false;
 }

@@ -1,12 +1,19 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
+
 <head>
     <title>Print Labels</title>
+    <link rel="icon" type="image/svg+xml" th:href="@{/favicon.svg}">
     <link th:href="@{/css/bootstrap.min.css}" rel="stylesheet">
     <style>
         @media print {
-            .no-print { display: none; }
-            .page-break { page-break-after: always; }
+            .no-print {
+                display: none;
+            }
+
+            .page-break {
+                page-break-after: always;
+            }
         }
 
         /* Default Grid (A4_40) fallback */
@@ -15,12 +22,14 @@
             gap: 10px;
             padding: 10px;
         }
+
         .label-item {
             border: 1px dashed #ccc;
             padding: 10px;
             text-align: center;
             page-break-inside: avoid;
-            background: white; 
+            background: white;
+            overflow: hidden;
         }
 
         /* A4 - 24 Labels (3x8) */
@@ -37,18 +46,21 @@
         .sheet-THERMAL_4x6 {
             width: 100mm;
         }
+
         .sheet-THERMAL_4x6 .label-grid {
             grid-template-columns: 1fr;
             gap: 0;
             padding: 0;
         }
+
         .sheet-THERMAL_4x6 .label-item {
             width: 100mm;
             height: 150mm;
             border: none;
             padding: 5mm;
             page-break-after: always;
-            display: flex; /* Center vertically for thermal */
+            display: flex;
+            /* Center vertically for thermal */
             flex-direction: column;
             justify-content: center;
         }
@@ -57,32 +69,49 @@
         .sheet-THERMAL_2x1 {
             width: 50mm;
         }
+
         .sheet-THERMAL_2x1 .label-grid {
             grid-template-columns: 1fr;
             gap: 0;
             padding: 0;
         }
+
         .sheet-THERMAL_2x1 .label-item {
             width: 50mm;
             height: 25mm;
-            border: none; /* No border for small thermal */
+            border: none;
+            /* No border for small thermal */
             padding: 1mm;
             page-break-after: always;
             display: flex;
             flex-direction: column;
             justify-content: center;
         }
+
         /* Adjust font sizes for tiny labels */
-        .sheet-THERMAL_2x1 .label-item .qr-img { width: 18mm; height: 18mm; }
-        .sheet-THERMAL_2x1 .label-item .fw-bold { font-size: 6pt !important; }
-        .sheet-THERMAL_2x1 .label-item div { font-size: 5pt !important; line-height: 1.1; }
+        .sheet-THERMAL_2x1 .label-item .qr-img {
+            max-width: 14mm;
+            max-height: 14mm;
+            width: auto;
+            height: auto;
+        }
+
+        .sheet-THERMAL_2x1 .label-item .fw-bold {
+            font-size: 6pt !important;
+        }
+
+        .sheet-THERMAL_2x1 .label-item div {
+            font-size: 5pt !important;
+            line-height: 1.1;
+        }
 
         /* Custom Thermal */
         .sheet-THERMAL_CUSTOM .label-grid {
-             grid-template-columns: 1fr;
-             gap: 0;
-             padding: 0;
+            grid-template-columns: 1fr;
+            gap: 0;
+            padding: 0;
         }
+
         .sheet-THERMAL_CUSTOM .label-item {
             border: none;
             padding: 2mm;
@@ -92,22 +121,23 @@
             justify-content: center;
         }
     </style>
-    
-    <!-- Dynamic Style for Custom Size -->
-    <style th:if="${labelSheetSize == 'THERMAL_CUSTOM'}">
+
+    <style th:if="${labelSheetSize == 'THERMAL_CUSTOM'}" th:utext="'
         @page {
-            size: [[${customLabelWidth}]]mm [[${customLabelHeight}]]mm;
+            size: ' + ${customLabelWidth} + 'mm ' + ${customLabelHeight} + 'mm;
             margin: 0;
         }
         .sheet-THERMAL_CUSTOM {
-            width: [[${customLabelWidth}]]mm;
+            width: ' + ${customLabelWidth} + 'mm;
         }
         .sheet-THERMAL_CUSTOM .label-item {
-            width: [[${customLabelWidth}]]mm;
-            height: [[${customLabelHeight}]]mm;
+            width: ' + ${customLabelWidth} + 'mm;
+            height: ' + ${customLabelHeight} + 'mm;
         }
-    </style>
+    '"></style>
+
 </head>
+
 <body th:class="'sheet-' + ${labelSheetSize != null ? labelSheetSize : 'A4_40'}">
     <div class="container-fluid">
         <div class="no-print d-flex justify-content-between align-items-center bg-light p-3 border-bottom mb-4">
@@ -116,39 +146,97 @@
                 <small class="text-muted" th:text="${batch.product.name}"></small>
             </div>
             <div>
-                <button onclick="window.print()" class="btn btn-primary"><i class="bi bi-printer-fill me-2"></i>Print</button>
+                <button onclick="window.print()" class="btn btn-primary"><i
+                        class="bi bi-printer-fill me-2"></i>Print</button>
                 <a th:href="@{/batches/{id}(id=${batch.id})}" class="btn btn-outline-secondary">Back</a>
             </div>
         </div>
-        
+
         <div class="label-grid">
             <div th:each="u : ${units}" class="label-item">
-                <div class="d-flex align-items-center justify-content-center flex-column h-100">
+                <div class="d-flex align-items-center justify-content-center flex-column">
                     <!-- Configurable Company Name -->
-                    <div th:if="${companyName != null && !companyName.isEmpty()}" 
-                         class="fw-bold text-uppercase" 
-                         style="font-size: 8pt; border-bottom: 1px solid #000; margin-bottom: 2px;" 
-                         th:text="${companyName}">Mushroom Operations</div>
-                         
-                    <div th:if="${companyName == null || companyName.isEmpty()}" 
-                         class="text-danger no-print" style="font-size: 6pt;">
-                        <span sec:authorize="hasRole('ADMIN')"><a href="/admin/settings" target="_blank">Set Company Name</a></span>
+                    <div th:if="${companyName != null && !companyName.isEmpty()}" class="fw-bold text-uppercase"
+                        style="font-size: 8pt; border-bottom: 1px solid #000; margin-bottom: 2px;"
+                        th:text="${companyName}">Mushroom Operations</div>
+
+                    <div th:if="${companyName == null || companyName.isEmpty()}" class="text-danger no-print"
+                        style="font-size: 6pt;">
+                        <span sec:authorize="hasRole('ADMIN')"><a href="/admin/settings" target="_blank">Set Company
+                                Name</a></span>
                         <span sec:authorize="!hasRole('ADMIN')">Ask Admin to Config Name</span>
                     </div>
 
-                    <img th:src="'data:image/png;base64,' + ${qrCodes.get(u.id)}" class="qr-img"/>
-                    <div class="fw-bold mt-1" style="font-size: 10pt; font-family: monospace;" th:text="${u.uuid}">UUID</div>
-                    <div class="text-uppercase fw-bold" style="font-size: 8pt;" th:text="${batch.product.name}">PROD</div>
-                    <div style="font-size: 7pt;">Pkd: <span th:text="${batch.batchDate}">DATE</span> | Exp: <span th:text="${batch.expiryDate}">DATE</span></div>
-                    <div style="font-size: 6pt; font-style: italic;" th:if="${batch.product.storageInstructions != null}" th:text="${batch.product.storageInstructions}">Storage</div>
-                    
+                    <img th:src="'data:image/png;base64,' + ${qrCodes.get(u.id)}" class="qr-img" />
+                    <div class="fw-bold mt-1" style="font-size: 10pt; font-family: monospace;" th:text="${u.uuid}">UUID
+                    </div>
+                    <div class="text-uppercase fw-bold" style="font-size: 8pt;" th:text="${batch.product.name}">PROD
+                    </div>
+                    <div style="font-size: 7pt;">Pkd: <span th:text="${batch.batchDate}">DATE</span> | Exp: <span
+                            th:text="${batch.expiryDate}">DATE</span></div>
+                    <div style="font-size: 6pt; font-style: italic;"
+                        th:if="${batch.product.storageInstructions != null}"
+                        th:text="${batch.product.storageInstructions}">Storage</div>
+
                     <!-- Configurable Contact -->
-                    <div th:if="${contactNumber != null && !contactNumber.isEmpty()}" 
-                         style="font-size: 6pt; margin-top: 2px;" 
-                         th:text="'Contact: ' + ${contactNumber}">Contact: +91 99999 88888</div>
+                    <div th:if="${contactNumber != null && !contactNumber.isEmpty()}"
+                        style="font-size: 6pt; margin-top: 2px;" th:text="'Contact: ' + ${contactNumber}">Contact: +91
+                        99999 88888</div>
                 </div>
             </div>
         </div>
     </div>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            autoFitLabels();
+        });
+
+        // Also run on window load to ensure images are loaded
+        window.addEventListener("load", function () {
+            autoFitLabels();
+        });
+
+        function autoFitLabels() {
+            const labels = document.querySelectorAll('.label-item');
+            labels.forEach(label => {
+                const content = label.querySelector('div'); // The inner d-flex wrapper
+                if (content) {
+                    // Reset transform to get natural size
+                    content.style.transform = 'none';
+                    content.style.width = '100%'; // Ensure full width for calc
+
+                    // Get computed styles to check padding
+                    const style = window.getComputedStyle(label);
+                    const paddingVertical = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+                    const paddingHorizontal = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+
+                    // Available space is client size MINUS padding (since clientHeight includes padding)
+                    // ...actually clientHeight includes padding. 
+                    // But content sits inside padding.
+                    // So we want the content box size.
+                    const availableHeight = label.clientHeight - paddingVertical;
+                    const availableWidth = label.clientWidth - paddingHorizontal;
+
+                    // Use scrollHeight/Width to get full content size
+                    const contentHeight = content.scrollHeight;
+                    const contentWidth = content.scrollWidth;
+
+                    // Calculate scale factors
+                    if (contentHeight > availableHeight || contentWidth > availableWidth) {
+                        const scaleH = availableHeight / contentHeight;
+                        const scaleW = availableWidth / contentWidth;
+
+                        // Use the smaller scale to fit both dimensions, with a 5% buffer
+                        const scale = Math.min(scaleH, scaleW) * 0.95;
+
+                        // Set origin to center so it shrinks into the middle
+                        content.style.transformOrigin = 'center center';
+                        content.style.transform = `scale(${scale})`;
+                    }
+                }
+            });
+        }
+    </script>
 </body>
+
 </html>
