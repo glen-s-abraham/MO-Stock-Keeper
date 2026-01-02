@@ -53,6 +53,9 @@ public class SalesOrder {
     // Store intended payment method (e.g. Cash/UPI) for Retail auto-finalize
     private String paymentMethod;
 
+    @Column(precision = 10, scale = 2)
+    private java.math.BigDecimal discountPercentage = java.math.BigDecimal.ZERO;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

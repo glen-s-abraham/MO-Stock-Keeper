@@ -143,6 +143,22 @@ public class SalesService {
     }
 
     @Transactional
+    public void updateOrderDiscount(Long orderId, BigDecimal discountPercentage) throws Exception {
+        if (discountPercentage == null || discountPercentage.compareTo(BigDecimal.ZERO) < 0
+                || discountPercentage.compareTo(new BigDecimal(100)) > 0) {
+            throw new Exception("Discount percentage must be between 0 and 100.");
+        }
+
+        SalesOrder so = orderRepository.findById(orderId).orElseThrow();
+        if (so.getStatus() == SalesOrderStatus.INVOICED || so.getStatus() == SalesOrderStatus.CANCELLED) {
+            throw new Exception("Cannot modify finalized order.");
+        }
+
+        so.setDiscountPercentage(discountPercentage);
+        orderRepository.save(so);
+    }
+
+    @Transactional
     public Invoice finalizeOrder(Long orderId, boolean isPaid, String paymentMethodStr) throws Exception {
         SalesOrder so = orderRepository.findById(orderId).orElseThrow();
 
@@ -163,9 +179,20 @@ public class SalesService {
         }
 
         // Calculate Total
-        BigDecimal total = BigDecimal.ZERO;
+        BigDecimal subTotal = BigDecimal.ZERO;
         for (InventoryUnit unit : so.getAllocatedUnits()) {
-            total = total.add(unit.getSoldPrice());
+            subTotal = subTotal.add(unit.getSoldPrice());
+        }
+
+        BigDecimal discountPercentage = so.getDiscountPercentage() != null ? so.getDiscountPercentage()
+                : BigDecimal.ZERO;
+        // Calc Discount Value
+        BigDecimal discountValue = subTotal.multiply(discountPercentage).divide(new BigDecimal(100));
+
+        BigDecimal total = subTotal.subtract(discountValue);
+
+        if (total.compareTo(BigDecimal.ZERO) < 0) {
+            throw new Exception("Total cannot be negative");
         }
 
         // Validate Validation for Hidden/Guest OR Retail Customers

@@ -169,6 +169,26 @@
                         </tbody>
                         <tfoot class="table-light">
                             <tr>
+                                <td colspan="3" class="text-end fw-bold">Subtotal:</td>
+                                <td class="text-end pe-3 text-muted" id="subTotal">0.00</td>
+                            </tr>
+                            <tr>
+                                <td colspan="3" class="text-end fw-bold align-middle">Discount (%):</td>
+                                <td class="text-end pe-3">
+                                    <div class="d-flex justify-content-end align-items-center gap-2">
+                                        <small class="text-danger fw-bold" id="discountValueDisplay">-0.00</small>
+                                        <div class="input-group input-group-sm justify-content-end"
+                                            style="width: auto;">
+                                            <input type="number" id="discountInput" class="form-control text-end"
+                                                style="max-width: 80px;" step="0.01" min="0" max="100" placeholder="0"
+                                                th:value="${order.discountPercentage}"
+                                                onchange="updateOrderDiscount(this)">
+                                            <span class="input-group-text">%</span>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
                                 <td colspan="3" class="text-end fw-bold">Total Invoice Value:</td>
                                 <td class="text-end pe-3 fw-bold fs-5 text-success" id="grandTotal"
                                     th:text="${currencySymbol} + ${grandTotal}">0.00</td>
@@ -582,7 +602,7 @@
                 const inputs = document.querySelectorAll('.product-price-input');
                 if (inputs.length === 0) return;
 
-                let grandTotal = 0;
+                let subTotal = 0;
                 inputs.forEach(input => {
                     const price = parseFloat(input.value) || 0;
                     const qty = parseInt(input.getAttribute('data-qty')) || 0;
@@ -590,9 +610,61 @@
 
                     const row = input.closest('tr');
                     row.querySelector('.product-subtotal').innerText = subtotal.toFixed(2);
-                    grandTotal += subtotal;
+                    subTotal += subtotal;
                 });
+
+                // Update Subtotal Display
+                if (document.getElementById('subTotal')) {
+                    document.getElementById('subTotal').innerText = currencySymbol + subTotal.toFixed(2);
+                }
+
+                // Get Discount Percent
+                const discountInput = document.getElementById('discountInput');
+                let discountPercent = 0;
+                if (discountInput) {
+                    discountPercent = parseFloat(discountInput.value) || 0;
+                }
+
+                // Calc Value
+                const discountValue = subTotal * (discountPercent / 100);
+
+                // Update Badge
+                if (document.getElementById('discountValueDisplay')) {
+                    document.getElementById('discountValueDisplay').innerText = '-' + discountValue.toFixed(2);
+                }
+
+                const grandTotal = subTotal - discountValue;
                 document.getElementById('grandTotal').innerText = currencySymbol + grandTotal.toFixed(2);
+            }
+
+            async function updateOrderDiscount(input) {
+                const discount = parseFloat(input.value) || 0;
+                if (discount < 0 || discount > 100) {
+                    alert("Discount must be between 0% and 100%");
+                    input.value = 0;
+                    return;
+                }
+                recalcTotals();
+
+                try {
+                    const res = await fetch(`/sales/${orderId}/update-discount`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', [csrfHeader]: csrfToken },
+                        body: JSON.stringify({ discount: discount })
+                    });
+
+                    if (!res.ok) {
+                        alert("Failed to save discount");
+                        input.classList.add('is-invalid');
+                    } else {
+                        input.classList.remove('is-invalid');
+                        input.classList.add('is-valid');
+                        setTimeout(() => input.classList.remove('is-valid'), 1000);
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert("Error saving discount");
+                }
             }
 
             async function updateProductPrice(input) {

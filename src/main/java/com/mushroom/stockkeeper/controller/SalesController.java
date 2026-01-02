@@ -225,6 +225,18 @@ public class SalesController {
         }
     }
 
+    @PostMapping("/{id}/update-discount")
+    @ResponseBody
+    public ResponseEntity<?> updateDiscount(@PathVariable Long id, @RequestBody java.util.Map<String, Object> payload) {
+        try {
+            java.math.BigDecimal discountPercentage = new java.math.BigDecimal(payload.get("discount").toString());
+            salesService.updateOrderDiscount(id, discountPercentage);
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     @PostMapping("/{id}/remove")
     public String removeUnit(@PathVariable Long id, @RequestParam Long unitId,
             org.springframework.web.servlet.mvc.support.RedirectAttributes redirectAttributes) {
