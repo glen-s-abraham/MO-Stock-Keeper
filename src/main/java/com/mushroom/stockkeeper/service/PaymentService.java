@@ -129,8 +129,9 @@ public class PaymentService {
         }
 
         // 5. Record Payment for Credit Usage
+        Payment creditPayment = null;
         if (totalCreditTaken.compareTo(BigDecimal.ZERO) > 0) {
-            Payment creditPayment = new Payment();
+            creditPayment = new Payment();
             creditPayment.setCustomer(customer);
             creditPayment.setAmount(totalCreditTaken);
             creditPayment.setPaymentMethod(PaymentMethod.CREDIT_NOTE);
@@ -153,8 +154,16 @@ public class PaymentService {
             auditService.log("SETTLEMENT_CASH", "Settlement Cash Injection: " + newCashInjection);
         }
 
-        // 7. Distribute Funds
-        distributeFunds(customerId, newCashInjection.add(totalCreditTaken), cashPayment);
+        // 7. Distribute Funds - SPLIT EXECUTION
+        // Apply Credits First
+        if (creditPayment != null) {
+            distributeFunds(customerId, totalCreditTaken, creditPayment);
+        }
+
+        // Apply Cash Second
+        if (cashPayment != null) {
+            distributeFunds(customerId, newCashInjection, cashPayment);
+        }
     }
 
     private void distributeFunds(Long customerId, BigDecimal amount, Payment sourcePayment) {

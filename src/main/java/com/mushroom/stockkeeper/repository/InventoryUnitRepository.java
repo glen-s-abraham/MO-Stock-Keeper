@@ -13,7 +13,14 @@ public interface InventoryUnitRepository extends JpaRepository<InventoryUnit, Lo
 
     void deleteByBatchId(Long batchId);
 
+    java.util.List<InventoryUnit> findByBatchId(Long batchId);
+
     long countBySalesOrderCustomerId(Long customerId);
 
     long countBySalesOrderCustomerIdAndStatus(Long customerId, com.mushroom.stockkeeper.model.InventoryStatus status);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("SELECT u FROM InventoryUnit u WHERE u.uuid = :uuid")
+    Optional<InventoryUnit> findByUuidForUpdate(
+            @org.springframework.web.bind.annotation.RequestParam("uuid") String uuid);
 }

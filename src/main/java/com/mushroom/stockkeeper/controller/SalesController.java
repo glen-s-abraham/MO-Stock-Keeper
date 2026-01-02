@@ -17,6 +17,13 @@ import java.util.Map;
 import java.util.ArrayList;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import jakarta.persistence.criteria.Predicate;
+import java.time.LocalDate;
 
 @Controller
 @RequestMapping("/sales")
@@ -43,8 +50,54 @@ public class SalesController {
     }
 
     @GetMapping
-    public String list(Model model) {
-        model.addAttribute("orders", orderRepository.findAll());
+    public String list(@RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String q, // Search (Order # or Customer)
+            @RequestParam(required = false) String status, // Status Filter
+            @RequestParam(required = false) LocalDate startDate,
+            @RequestParam(required = false) LocalDate endDate,
+            Model model) {
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        Specification<SalesOrder> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            // Search (Order #, Customer Name)
+            if (q != null && !q.trim().isEmpty()) {
+                String likePattern = "%" + q.toLowerCase() + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("orderNumber")), likePattern),
+                        cb.like(cb.lower(root.get("customer").get("name")), likePattern)));
+            }
+
+            // Status Filter
+            if (status != null && !status.isEmpty() && !"all".equalsIgnoreCase(status)) {
+                try {
+                    com.mushroom.stockkeeper.model.SalesOrderStatus statusEnum = com.mushroom.stockkeeper.model.SalesOrderStatus
+                            .valueOf(status.toUpperCase());
+                    predicates.add(cb.equal(root.get("status"), statusEnum));
+                } catch (Exception e) {
+                }
+            }
+
+            // Date Range (Created At)
+            if (startDate != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt").as(LocalDate.class), startDate));
+            }
+            if (endDate != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("createdAt").as(LocalDate.class), endDate));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        Page<SalesOrder> ordersPage = orderRepository.findAll(spec, pageable);
+
+        model.addAttribute("ordersPage", ordersPage);
+        model.addAttribute("orders", ordersPage.getContent());
+        model.addAttribute("currentStatus", status);
+
         return "sales/list";
     }
 

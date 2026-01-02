@@ -35,14 +35,22 @@ public class AdminController {
 
     @PostMapping("/settings")
     public String saveSettings(@RequestParam Map<String, String> allParams, RedirectAttributes redirectAttributes) {
-        // Filter and save known keys
-        String[] keys = { "company_name", "company_address", "company_email", "company_phone", "company_tax_id",
-                "currency_symbol", "label_sheet_size", "target_printer", "custom_label_width", "custom_label_height" };
+        // Dynamic Save: Iterate over all params found in the form
+        // We filter out standard Spring/Tomcat params if any (like _csrf)
+        // For simple app, saving all non-empty strings starting with known prefix or
+        // just
+        // everything except _csrf is safer.
+        // Actually, let's trust the form.
 
-        for (String key : keys) {
-            String val = allParams.getOrDefault(key, "");
+        for (Map.Entry<String, String> entry : allParams.entrySet()) {
+            String key = entry.getKey();
+            String val = entry.getValue();
+
+            if (key.startsWith("_") || key.equals("csrf"))
+                continue; // Skip internal
+
             AppSetting setting = settingRepository.findBySettingKey(key).orElse(new AppSetting(key, ""));
-            setting.setSettingValue(val);
+            setting.setSettingValue(val != null ? val : "");
             settingRepository.save(setting);
         }
 

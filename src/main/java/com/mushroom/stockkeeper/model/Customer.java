@@ -14,6 +14,8 @@ public class Customer {
     private Long id;
 
     @Column(nullable = false)
+    @jakarta.validation.constraints.NotBlank(message = "Customer Name is required")
+    @jakarta.validation.constraints.Size(min = 2, message = "Name must be at least 2 characters")
     private String name;
 
     private String phone;

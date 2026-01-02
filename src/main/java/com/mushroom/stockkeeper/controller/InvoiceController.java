@@ -119,10 +119,9 @@ public class InvoiceController {
                 List<Invoice> invoices = invoiceRepository.findByCustomerIdOrderByInvoiceDateDesc(customerId)
                                 .orElse(new ArrayList<>());
 
-                // Fetch Credit Notes using stream filter for now
-                List<com.mushroom.stockkeeper.model.CreditNote> creditNotes = creditNoteRepository.findAll().stream()
-                                .filter(c -> c.getCustomer().getId().equals(customerId))
-                                .collect(Collectors.toList());
+                // Fetch Credit Notes EFFICIENTLY
+                List<com.mushroom.stockkeeper.model.CreditNote> creditNotes = creditNoteRepository
+                                .findByCustomerId(customerId);
 
                 model.addAttribute("customer", customer);
                 model.addAttribute("invoices", invoices);

@@ -9,8 +9,12 @@ public interface CreditNoteRepository extends JpaRepository<CreditNote, Long> {
 
     Optional<CreditNote> findByGeneratedFromPayment(com.mushroom.stockkeeper.model.Payment payment);
 
+    java.util.List<CreditNote> findByOriginalInvoice(com.mushroom.stockkeeper.model.Invoice invoice);
+
     @org.springframework.data.jpa.repository.Query("SELECT c.customer.id, SUM(c.remainingAmount) FROM CreditNote c WHERE c.customer.type = 'WHOLESALE' AND c.remainingAmount > 0 GROUP BY c.customer.id")
     java.util.List<Object[]> findWholesaleRemainingCredits();
 
     long countByCustomerId(Long customerId);
+
+    java.util.List<CreditNote> findByCustomerId(Long customerId);
 }

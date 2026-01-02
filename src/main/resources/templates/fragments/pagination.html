@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head></head>
+
+<body>
+
+    <!-- 
+        Usage: 
+        <div th:replace="~{fragments/pagination :: controls(page=${dataPage}, linkPrefix='/products')}"></div>
+        dataPage: The Spring Data Page object
+        linkPrefix: The base URL for the list view
+     -->
+
+    <div th:fragment="controls(page, linkPrefix)"
+        class="d-flex flex-column flex-md-row justify-content-between align-items-center mt-4"
+        th:if="${page.totalElements > 0}">
+
+        <!-- Page Info & Size Selector -->
+        <div class="mb-3 mb-md-0 d-flex align-items-center text-muted small">
+            <span class="me-3">
+                Showing <strong th:text="${page.numberOfElements}">10</strong> of <strong
+                    th:text="${page.totalElements}">100</strong> items
+            </span>
+
+            <div class="d-flex align-items-center">
+                <span class="me-2">Page size:</span>
+                <select class="form-select form-select-sm" style="width: 70px;" onchange="updatePageSize(this.value)">
+                    <option value="10" th:selected="${page.size == 10}">10</option>
+                    <option value="25" th:selected="${page.size == 25}">25</option>
+                    <option value="50" th:selected="${page.size == 50}">50</option>
+                    <option value="100" th:selected="${page.size == 100}">100</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Pagination Links -->
+        <nav aria-label="Page navigation" th:if="${page.totalPages > 1}">
+            <ul class="pagination pagination-sm mb-0 shadow-sm">
+
+                <!-- First -->
+                <li class="page-item" th:classappend="${page.first} ? 'disabled'">
+                    <a class="page-link" th:href="${@urlBuilder.replaceParam('page', '0')}" aria-label="First">
+                        <i class="bi bi-chevron-double-left"></i>
+                    </a>
+                </li>
+
+                <!-- Previous -->
+                <li class="page-item" th:classappend="${!page.hasPrevious()} ? 'disabled'">
+                    <a class="page-link" th:href="${@urlBuilder.replaceParam('page', page.number - 1)}"
+                        aria-label="Previous">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+
+                <!-- Page Numbers (Sliding Window) -->
+                <!-- Simple window: current - 2 to current + 2 -->
+                <th:block
+                    th:with="start=${(page.number - 2 < 0) ? 0 : (page.number - 2)}, end=${(page.number + 2 >= page.totalPages) ? page.totalPages - 1 : (page.number + 2)}">
+                    <li class="page-item" th:each="i : ${#numbers.sequence(start, end)}"
+                        th:classappend="${i == page.number} ? 'active'">
+                        <a class="page-link" th:href="${@urlBuilder.replaceParam('page', i)}" th:text="${i + 1}">1</a>
+                    </li>
+                </th:block>
+
+                <!-- Next -->
+                <li class="page-item" th:classappend="${!page.hasNext()} ? 'disabled'">
+                    <a class="page-link" th:href="${@urlBuilder.replaceParam('page', page.number + 1)}"
+                        aria-label="Next">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+
+                <!-- Last -->
+                <li class="page-item" th:classappend="${page.last} ? 'disabled'">
+                    <a class="page-link" th:href="${@urlBuilder.replaceParam('page', page.totalPages - 1)}"
+                        aria-label="Last">
+                        <i class="bi bi-chevron-double-right"></i>
+                    </a>
+                </li>
+
+            </ul>
+        </nav>
+
+        <script>
+            function updatePageSize(size) {
+                const url = new URL(window.location.href);
+                url.searchParams.set('size', size);
+                url.searchParams.set('page', 0); // Reset to first page
+                window.location.href = url.toString();
+            }
+        </script>
+    </div>
+</body>
+
+</html>

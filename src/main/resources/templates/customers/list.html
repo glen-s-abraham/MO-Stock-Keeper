@@ -17,6 +17,30 @@
                     class="bi bi-person-plus me-2"></i>New Customer</a>
         </div>
 
+        <!-- Advanced Filters -->
+        <div th:replace="~{fragments/filters :: panel(url='/customers', filterFragment=~{::filters})}">
+            <th:block th:fragment="filters">
+                <!-- Type Filter -->
+                <div class="col-md-3">
+                    <label class="form-label small text-muted text-uppercase fw-bold">Customer Type</label>
+                    <select class="form-select" name="type">
+                        <option value="all" th:selected="${currentType == 'all'}">All Types</option>
+                        <option value="WHOLESALE" th:selected="${currentType == 'WHOLESALE'}">Wholesale</option>
+                        <option value="RETAIL" th:selected="${currentType == 'RETAIL'}">Retail</option>
+                    </select>
+                </div>
+                <!-- Min Credit Limit -->
+                <div class="col-md-3">
+                    <label class="form-label small text-muted text-uppercase fw-bold">Min Credit Limit</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0">$</span>
+                        <input type="number" class="form-control border-start-0 ps-0" name="minCredit"
+                            th:value="${param.minCredit}" placeholder="0.00">
+                    </div>
+                </div>
+            </th:block>
+        </div>
+
         <div class="card shadow-sm">
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -59,6 +83,11 @@
                             </tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+            <!-- Pagination Footer -->
+            <div class="card-footer bg-white border-top-0 pt-0">
+                <div th:replace="~{fragments/pagination :: controls(page=${customerPage}, linkPrefix='/customers')}">
                 </div>
             </div>
         </div>

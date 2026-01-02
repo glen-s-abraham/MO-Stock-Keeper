@@ -4,7 +4,8 @@ import com.mushroom.stockkeeper.model.HarvestBatch;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
-public interface HarvestBatchRepository extends JpaRepository<HarvestBatch, Long> {
+public interface HarvestBatchRepository extends JpaRepository<HarvestBatch, Long>,
+                org.springframework.data.jpa.repository.JpaSpecificationExecutor<HarvestBatch> {
         Optional<HarvestBatch> findByBatchCode(String batchCode);
 
         long countByProductId(Long productId);

@@ -5,7 +5,10 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "inventory_units")
+@Table(name = "inventory_units", indexes = {
+        @Index(name = "idx_unit_uuid", columnList = "uuid"),
+        @Index(name = "idx_unit_batch_status", columnList = "batch_id, status")
+})
 @Data
 public class InventoryUnit {
     @Id

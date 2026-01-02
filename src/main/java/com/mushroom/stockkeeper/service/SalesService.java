@@ -57,7 +57,8 @@ public class SalesService {
         // Let's assume scanner reads "U:abc-123"
         String uuid = qrContent.startsWith("U:") ? qrContent.substring(2) : qrContent;
 
-        InventoryUnit unit = unitRepository.findByUuid(uuid)
+        // CONCURRENCY FIX: Use Pessimistic Lock
+        InventoryUnit unit = unitRepository.findByUuidForUpdate(uuid)
                 .orElseThrow(() -> new Exception("Unit not found: " + uuid));
 
         if (unit.getStatus() != InventoryStatus.AVAILABLE) {
@@ -309,11 +310,22 @@ public class SalesService {
         auditService.log("CANCEL_ORDER", "Cancelling Order " + orderId + " (Inv: " + invoice.getInvoiceNumber() + ")");
 
         // SAFE CANCELLATION: Issue Refund if Paid
-        if (invoice.getAmountPaid().compareTo(BigDecimal.ZERO) > 0) {
+        // Fix: Deduct any amounts already returned via Credit Notes
+        java.util.List<CreditNote> existingNotes = creditNoteRepository.findByOriginalInvoice(invoice);
+        BigDecimal alreadyReturned = existingNotes.stream()
+                .map(CreditNote::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal refundableAmount = invoice.getAmountPaid().subtract(alreadyReturned);
+        if (refundableAmount.compareTo(BigDecimal.ZERO) < 0) {
+            refundableAmount = BigDecimal.ZERO;
+        }
+
+        if (refundableAmount.compareTo(BigDecimal.ZERO) > 0) {
             CreditNote refundNote = new CreditNote();
             refundNote.setCustomer(invoice.getCustomer());
             refundNote.setOriginalInvoice(invoice);
-            refundNote.setAmount(invoice.getAmountPaid());
+            refundNote.setAmount(refundableAmount); // Only refund net remaining
             refundNote.setNoteDate(LocalDate.now());
             refundNote.setReason("Refund for Cancelled Order " + invoice.getInvoiceNumber());
             refundNote.setNoteNumber("RF-" + System.currentTimeMillis());
@@ -328,12 +340,15 @@ public class SalesService {
                 refundNote.setReason(refundNote.getReason() + " (Cash Refund)");
             } else {
                 refundNote.setUsed(false);
-                refundNote.setRemainingAmount(invoice.getAmountPaid());
+                refundNote.setRemainingAmount(refundableAmount);
             }
 
             creditNoteRepository.save(refundNote);
 
             auditService.log("ISSUE_REFUND", "Refund Note " + refundNote.getNoteNumber() + " for Order " + orderId);
+        } else if (invoice.getAmountPaid().compareTo(BigDecimal.ZERO) > 0) {
+            auditService.log("CANCEL_INFO",
+                    "Order " + orderId + " cancelled but full amount already returned via Credit Notes.");
         }
 
         invoice.setStatus(InvoiceStatus.CANCELLED);
@@ -344,6 +359,13 @@ public class SalesService {
 
         // Revert Units
         for (InventoryUnit unit : so.getAllocatedUnits()) {
+            if (unit.getStatus() == InventoryStatus.RETURNED || unit.getStatus() == InventoryStatus.SPOILED) {
+                // Keep state, just unlink (already returned)
+                unit.setSalesOrder(null);
+                unitRepository.save(unit);
+                continue;
+            }
+
             unit.setStatus(InventoryStatus.AVAILABLE);
             unit.setSalesOrder(null); // Unlink from order to make available for others
             unit.setSoldPrice(null);
@@ -356,5 +378,33 @@ public class SalesService {
         // Update Order Status
         so.setStatus(SalesOrderStatus.CANCELLED);
         orderRepository.save(so);
+    }
+
+    @Transactional
+    @org.springframework.scheduling.annotation.Scheduled(cron = "0 0 * * * *") // Run every hour
+    public void cleanupOldDrafts() {
+        // We need a repository method or just iterate.
+        // Iterate for now as we don't have createdAt field exposed in spec query easily
+        // without updating entity/repo
+        // Actually, SalesOrder has OrderDate (LocalDate). Let's use that for "older
+        // than 2 days" to be safe.
+        LocalDate cutoffDate = LocalDate.now().minusDays(2);
+
+        java.util.List<SalesOrder> drafts = orderRepository.findByStatus(SalesOrderStatus.DRAFT);
+        int cleaned = 0;
+        for (SalesOrder s : drafts) {
+            if (s.getOrderDate().isBefore(cutoffDate)) {
+                try {
+                    cancelOrder(s.getId()); // Reuses existing logic to free units
+                    cleaned++;
+                } catch (Exception e) {
+                    // Log error but continue
+                    System.err.println("Failed to cleanup draft " + s.getId() + ": " + e.getMessage());
+                }
+            }
+        }
+        if (cleaned > 0) {
+            auditService.log("DATA_CLEANUP", "Cleaned up " + cleaned + " abandoned stale draft orders.");
+        }
     }
 }

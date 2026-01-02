@@ -6,7 +6,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.Optional;
 
-public interface SalesOrderRepository extends JpaRepository<SalesOrder, Long> {
+public interface SalesOrderRepository
+        extends JpaRepository<SalesOrder, Long>,
+        org.springframework.data.jpa.repository.JpaSpecificationExecutor<SalesOrder> {
     Optional<SalesOrder> findByOrderNumber(String orderNumber);
 
     List<SalesOrder> findByStatus(SalesOrderStatus status);

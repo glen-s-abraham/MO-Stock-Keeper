@@ -17,21 +17,47 @@
                     class="bi bi-cash-coin me-2"></i>Record Payment</a>
         </div>
 
-        <!-- Tabs -->
-        <ul class="nav nav-tabs mb-4" id="collectionTabs" role="tablist">
+        <!-- Filter Panel (Shared) -->
+        <!-- We pass currentTab as hidden so it persists on Filter Apply -->
+        <div th:replace="~{fragments/filters :: panel(url='/collections', filterFragment=~{::filters})}">
+            <th:block th:fragment="filters">
+                <input type="hidden" name="tab" th:value="${currentTab}">
+
+                <!-- Retail Specific Filters -->
+                <th:block th:if="${currentTab == 'retail'}">
+                    <!-- Date Range -->
+                    <div th:replace="~{fragments/filters :: dateRange('startDate', 'endDate', 'Invoice Date')}"></div>
+
+                    <!-- Status -->
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted text-uppercase fw-bold">Status</label>
+                        <select class="form-select" name="status">
+                            <option value="all">All</option>
+                            <option th:each="s : ${T(com.mushroom.stockkeeper.model.InvoiceStatus).values()}"
+                                th:value="${s}" th:text="${s}"
+                                th:selected="${#strings.equals(currentStatus, s.name())}">
+                            </option>
+                        </select>
+                    </div>
+                </th:block>
+            </th:block>
+        </div>
+
+        <!-- Server-Side Tabs -->
+        <ul class="nav nav-tabs mb-4">
             <li class="nav-item">
-                <button class="nav-link active fw-bold" id="wholesale-tab" data-bs-toggle="tab"
-                    data-bs-target="#wholesale" type="button">Wholesale Collections</button>
+                <a class="nav-link fw-bold" th:classappend="${currentTab == 'wholesale'} ? 'active'"
+                    th:href="@{/collections(tab='wholesale')}">Wholesale Collections</a>
             </li>
             <li class="nav-item">
-                <button class="nav-link fw-bold" id="retail-tab" data-bs-toggle="tab" data-bs-target="#retail"
-                    type="button">Retail Sales History</button>
+                <a class="nav-link fw-bold" th:classappend="${currentTab == 'retail'} ? 'active'"
+                    th:href="@{/collections(tab='retail')}">Retail Sales History</a>
             </li>
         </ul>
 
-        <div class="tab-content" id="collectionTabContent">
-            <!-- Wholesale Tab -->
-            <div class="tab-pane fade show active" id="wholesale" role="tabpanel">
+        <div class="tab-content">
+            <!-- Wholesale Tab Content -->
+            <div th:if="${currentTab == 'wholesale'}">
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-light py-3">
                         <h5 class="mb-0 text-dark"><i class="bi bi-graph-up text-success me-2"></i>Customer Aging Report
@@ -94,11 +120,17 @@
                             </table>
                         </div>
                     </div>
+                    <!-- Pagination for Wholesale -->
+                    <div class="card-footer bg-white border-top-0 pt-0">
+                        <div
+                            th:replace="~{fragments/pagination :: controls(page=${customersPage}, linkPrefix='/collections')}">
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Retail Tab -->
-            <div class="tab-pane fade" id="retail" role="tabpanel">
+            <!-- Retail Tab Content -->
+            <div th:if="${currentTab == 'retail'}">
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-light py-3">
                         <h5 class="mb-0 text-dark"><i class="bi bi-shop text-primary me-2"></i>Recent Retail Sales</h5>
@@ -138,6 +170,12 @@
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                    <!-- Pagination for Retail -->
+                    <div class="card-footer bg-white border-top-0 pt-0">
+                        <div
+                            th:replace="~{fragments/pagination :: controls(page=${retailPage}, linkPrefix='/collections')}">
                         </div>
                     </div>
                 </div>

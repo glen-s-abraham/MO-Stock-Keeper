@@ -16,6 +16,13 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import jakarta.persistence.criteria.Predicate;
+import java.util.ArrayList;
 
 @Controller
 @RequestMapping("/batches")
@@ -40,73 +47,75 @@ public class HarvestBatchController {
     }
 
     @GetMapping
-    public String list(@RequestParam(defaultValue = "active") String filter,
+    public String list(@RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String q, // Search query
             @RequestParam(required = false) Long productId,
-            @RequestParam(defaultValue = "false") boolean showAll,
+            @RequestParam(required = false) LocalDate startDate,
+            @RequestParam(required = false) LocalDate endDate,
+            @RequestParam(defaultValue = "all") String filter, // Keeping legacy filter param for compatibility or
+                                                               // explicit status
+                                                               // filtering
             Model model) {
 
-        // Mode 1: Product Selection (Default Landing)
-        if (productId == null && !showAll) {
-            model.addAttribute("products", productRepository.findAll());
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "batchDate"));
 
-            // Fetch Stats
-            LocalDate now = LocalDate.now();
-            Map<Long, Long> activeCounts = batchRepository.countActiveBatchesGrouped(now).stream()
-                    .collect(Collectors.toMap(obj -> (Long) obj[0], obj -> (Long) obj[1]));
+        Specification<HarvestBatch> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
 
-            Map<Long, Long> expiredCounts = batchRepository.countExpiredBatchesGrouped(now).stream()
-                    .collect(Collectors.toMap(obj -> (Long) obj[0], obj -> (Long) obj[1]));
-
-            model.addAttribute("activeCounts", activeCounts);
-            model.addAttribute("expiredCounts", expiredCounts);
-
-            return "batches/products";
-        }
-
-        // Mode 2: Batch List (Filtered)
-        LocalDate today = LocalDate.now();
-        List<HarvestBatch> batches;
-
-        if (productId != null) {
-            // Filter by Product + Status
-            Product product = productRepository.findById(productId)
-                    .orElseThrow(() -> new IllegalArgumentException("Invalid product"));
-            model.addAttribute("selectedProduct", product);
-
-            switch (filter) {
-                case "expired":
-                    batches = batchRepository.findExpiredByProduct(productId, today);
-                    break;
-                case "all":
-                    batches = batchRepository.findByProductId(productId);
-                    break;
-                case "active":
-                default:
-                    batches = batchRepository.findActiveByProduct(productId, today);
-                    break;
+            // Search by Batch Code
+            if (q != null && !q.trim().isEmpty()) {
+                predicates.add(cb.like(cb.lower(root.get("batchCode")), "%" + q.toLowerCase() + "%"));
             }
-        } else {
-            // Show All (Mixed) + Status
-            switch (filter) {
-                case "expired":
-                    batches = batchRepository.findByExpiryDateLessThan(today);
-                    break;
-                case "all":
-                    batches = batchRepository.findAll();
-                    break;
-                case "active":
-                default:
-                    batches = batchRepository.findByExpiryDateGreaterThanEqualOrExpiryDateIsNull(today);
-                    break;
+
+            // Filter by Product
+            if (productId != null) {
+                predicates.add(cb.equal(root.get("product").get("id"), productId));
             }
-        }
 
-        // Sort DESC
-        batches.sort(java.util.Comparator.comparing(HarvestBatch::getBatchDate).reversed());
+            // Date Range (Batch Date)
+            if (startDate != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("batchDate"), startDate));
+            }
+            if (endDate != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("batchDate"), endDate));
+            }
 
-        model.addAttribute("batches", batches);
+            // Status Filter using Legacy Param
+            LocalDate today = LocalDate.now();
+            if ("active".equalsIgnoreCase(filter)) {
+                // Expiry >= Today OR Null
+                Predicate notExpired = cb.or(
+                        cb.greaterThanOrEqualTo(root.get("expiryDate"), today),
+                        cb.isNull(root.get("expiryDate")));
+                predicates.add(notExpired);
+            } else if ("expired".equalsIgnoreCase(filter)) {
+                predicates.add(cb.lessThan(root.get("expiryDate"), today));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        Page<HarvestBatch> batchesPage = batchRepository.findAll(spec, pageable);
+
+        // Fetch Stats (Global - unrelated to search for dashboard feel, or filtered?
+        // Let's
+        // keep global for now as headers)
+        LocalDate now = LocalDate.now();
+        // Optimize: these counts could be cached
+        Map<Long, Long> activeCounts = batchRepository.countActiveBatchesGrouped(now).stream()
+                .collect(Collectors.toMap(obj -> (Long) obj[0], obj -> (Long) obj[1]));
+        Map<Long, Long> expiredCounts = batchRepository.countExpiredBatchesGrouped(now).stream()
+                .collect(Collectors.toMap(obj -> (Long) obj[0], obj -> (Long) obj[1]));
+
+        model.addAttribute("batchesPage", batchesPage); // Use Page object
+        model.addAttribute("batches", batchesPage.getContent()); // Maintain compatibility
+        model.addAttribute("products", productRepository.findAll());
         model.addAttribute("currentFilter", filter);
         model.addAttribute("currentProductId", productId);
+        model.addAttribute("activeCounts", activeCounts);
+        model.addAttribute("expiredCounts", expiredCounts);
+
         return "batches/list";
     }
 
@@ -133,10 +142,10 @@ public class HarvestBatchController {
         // Repository.
         // I didn't add it in the Entity step (to keep it simple). Let's use Repository.
         // Actually, for "Print", we need them.
-        List<InventoryUnit> units = unitRepository.findAll().stream() // Inefficient for production, should add method
-                                                                      // in repo
-                .filter(u -> u.getBatch().getId().equals(id))
-                .collect(Collectors.toList());
+        // Since we don't have a direct List<Unit> in Batch entity (to save memory/lazy
+        // load), we fetch from repo
+        // Optimized: Use direct DB query
+        List<InventoryUnit> units = unitRepository.findByBatchId(id);
 
         model.addAttribute("batch", batch);
         model.addAttribute("units", units);
@@ -154,10 +163,8 @@ public class HarvestBatchController {
         List<InventoryUnit> units;
 
         // Base List
-        // Optimize: Implement findByBatchId in repo to avoid loading all
-        List<InventoryUnit> allBatchUnits = unitRepository.findAll().stream()
-                .filter(u -> u.getBatch().getId().equals(id))
-                .collect(Collectors.toList());
+        // Optimized: Use direct DB query
+        List<InventoryUnit> allBatchUnits = unitRepository.findByBatchId(id);
 
         if (unitId != null) {
             // Print specific unit

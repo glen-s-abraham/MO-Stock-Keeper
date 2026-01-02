@@ -1,8 +1,11 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layout/base}">
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+    layout:decorate="~{layout/base}">
+
 <head>
     <title>Sales Orders</title>
 </head>
+
 <body>
     <div layout:fragment="content">
         <div class="d-flex justify-content-between align-items-center mb-4">
@@ -10,9 +13,29 @@
                 <h2 class="mb-1">Sales Orders</h2>
                 <p class="text-muted mb-0">Manage customer orders and fulfillment.</p>
             </div>
-            <a th:href="@{/sales/create}" class="btn btn-primary shadow-sm"><i class="bi bi-cart-plus me-2"></i>New Order</a>
+            <a th:href="@{/sales/create}" class="btn btn-primary shadow-sm"><i class="bi bi-cart-plus me-2"></i>New
+                Order</a>
         </div>
-        
+
+        <!-- Advanced Filters -->
+        <div th:replace="~{fragments/filters :: panel(url='/sales', filterFragment=~{::filters})}">
+            <th:block th:fragment="filters">
+                <!-- Date Range -->
+                <div th:replace="~{fragments/filters :: dateRange('startDate', 'endDate', 'Created Date')}"></div>
+
+                <!-- Status Filter -->
+                <div class="col-md-2">
+                    <label class="form-label small text-muted text-uppercase fw-bold">Status</label>
+                    <select class="form-select" name="status">
+                        <option value="all">All</option>
+                        <option th:each="s : ${T(com.mushroom.stockkeeper.model.SalesOrderStatus).values()}"
+                            th:value="${s}" th:text="${s}" th:selected="${#strings.equals(currentStatus, s.name())}">
+                        </option>
+                    </select>
+                </div>
+            </th:block>
+        </div>
+
         <div class="row g-3">
             <div class="col-12 col-lg-6" th:each="o : ${orders}">
                 <a th:href="@{/sales/{id}(id=${o.id})}" class="text-decoration-none">
@@ -21,29 +44,40 @@
                             <div class="d-flex justify-content-between align-items-start mb-3">
                                 <div>
                                     <h5 class="card-title text-dark mb-1" th:text="${o.orderNumber}">SO-123</h5>
-                                    <small class="text-muted"><i class="bi bi-person me-1"></i> <span th:text="${o.customer.name}">Customer</span></small>
+                                    <small class="text-muted"><i class="bi bi-person me-1"></i> <span
+                                            th:text="${o.customer.name}">Customer</span></small>
                                 </div>
-                                <span class="badge rounded-pill px-3 py-2" 
-                                      th:classappend="${o.status.name() == 'INVOICED'} ? 'bg-success text-white' : 'bg-warning text-dark'" 
-                                      th:text="${o.status}">DRAFT</span>
+                                <span class="badge rounded-pill px-3 py-2"
+                                    th:classappend="${o.status.name() == 'INVOICED'} ? 'bg-success text-white' : 'bg-warning text-dark'"
+                                    th:text="${o.status}">DRAFT</span>
                             </div>
                             <div class="d-flex align-items-center justify-content-between mt-3">
-                                <span class="text-muted small"><i class="bi bi-box-seam me-2"></i><span th:text="${o.allocatedUnits.size()}">0</span> Items</span>
-                                <span class="btn btn-sm btn-outline-secondary border-0"><i class="bi bi-chevron-right"></i></span>
+                                <span class="text-muted small"><i class="bi bi-box-seam me-2"></i><span
+                                        th:text="${o.allocatedUnits.size()}">0</span> Items</span>
+
+                                <div class="text-end">
+                                    <small class="text-muted d-block"
+                                        th:text="${#temporals.format(o.createdAt, 'dd MMM yyyy')}">Date</small>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </a>
             </div>
-            
+
             <!-- Empty State -->
             <div class="col-12" th:if="${#lists.isEmpty(orders)}">
                 <div class="text-center py-5 text-muted">
                     <i class="bi bi-cart-x fs-1 d-block mb-3 opacity-25"></i>
-                    No sales orders found.
+                    No sales orders found matching criteria.
                 </div>
             </div>
         </div>
+
+        <!-- Pagination Controls -->
+        <div th:replace="~{fragments/pagination :: controls(page=${ordersPage}, linkPrefix='/sales')}"></div>
+
     </div>
 </body>
+
 </html>

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head></head>
+
+<body>
+
+    <!-- 
+        Usage: 
+        <div th:replace="~{fragments/filters :: panel(url='/products', filterFragment=~{::filters})}">
+             <th:block th:fragment="filters">
+                 Custom filters go here
+             </th:block>
+        </div>
+     -->
+
+    <div th:fragment="panel(url, filterFragment)" class="card shadow-sm mb-4 border-0 bg-light">
+        <div class="card-body">
+            <form th:action="${url}" method="get" class="row g-3 align-items-end">
+
+                <!-- Search Main (Always present) -->
+                <div class="col-md-3">
+                    <label class="form-label small text-muted text-uppercase fw-bold">Search</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0"><i
+                                class="bi bi-search text-muted"></i></span>
+                        <input type="text" class="form-control border-start-0 ps-0" name="q" th:value="${param.q}"
+                            placeholder="Search...">
+                    </div>
+                </div>
+
+                <!-- Custom Filters Injection -->
+                <th:block th:replace="${filterFragment}"></th:block>
+
+                <!-- Actions -->
+                <div class="col-md-auto ms-auto d-flex gap-2">
+                    <a th:href="${url}" class="btn btn-outline-secondary">Clear</a>
+                    <button type="submit" class="btn btn-primary px-4">Apply Filters</button>
+                </div>
+
+                <!-- Hidden inputs for preserving page/sort if needed, though usually filter resets page -->
+                <input type="hidden" name="size" th:value="${param.size != null ? param.size : 10}">
+            </form>
+        </div>
+    </div>
+
+    <!-- Reusable Fragments for common inputs -->
+
+    <!-- Date Range -->
+    <th:block th:fragment="dateRange(startName, endName, label)">
+        <div class="col-md-4">
+            <label class="form-label small text-muted text-uppercase fw-bold" th:text="${label}">Date Range</label>
+            <div class="input-group">
+                <input type="date" class="form-control" th:name="${startName}" th:value="${param.get(startName)}">
+                <span class="input-group-text bg-transparent border-start-0 border-end-0">to</span>
+                <input type="date" class="form-control" th:name="${endName}" th:value="${param.get(endName)}">
+            </div>
+        </div>
+    </th:block>
+
+    <!-- Range Input (Min/Max) -->
+    <th:block th:fragment="numberRange(minName, maxName, label)">
+        <div class="col-md-3">
+            <label class="form-label small text-muted text-uppercase fw-bold" th:text="${label}">Range</label>
+            <div class="input-group">
+                <input type="number" class="form-control" th:name="${minName}" th:value="${param.get(minName)}"
+                    placeholder="Min">
+                <span class="input-group-text">-</span>
+                <input type="number" class="form-control" th:name="${maxName}" th:value="${param.get(maxName)}"
+                    placeholder="Max">
+            </div>
+        </div>
+    </th:block>
+
+</body>
+
+</html>

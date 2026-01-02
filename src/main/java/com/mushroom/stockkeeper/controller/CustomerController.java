@@ -5,6 +5,14 @@ import com.mushroom.stockkeeper.repository.CustomerRepository;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import jakarta.persistence.criteria.Predicate;
+import java.util.ArrayList;
+import java.util.List;
 
 @Controller
 @RequestMapping("/customers")
@@ -27,8 +35,61 @@ public class CustomerController {
     }
 
     @GetMapping
-    public String list(Model model) {
-        model.addAttribute("customers", customerRepository.findAll());
+    public String list(@RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String q, // Search
+            @RequestParam(defaultValue = "all") String type, // Filter by Type
+            @RequestParam(required = false) Double minCredit, // Filter: Credit Limit > X
+            Model model) {
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "name"));
+
+        Specification<Customer> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            // Always hide hidden customers for general list unless specifically requested?
+            // Actually, existing logic showed 'isHiddenFalse' probably.
+            // Let's check repository... repository had findByIsHiddenFalse
+            // So we should filter out hidden ones by default unless maybe searching?
+            // "Walk-in Guest" is hidden. We probably don't want to list them here.
+            predicates.add(cb.isFalse(root.get("isHidden")));
+
+            // Search (Name, Phone, Email, Contact Person)
+            if (q != null && !q.trim().isEmpty()) {
+                String likePattern = "%" + q.toLowerCase() + "%";
+                Predicate searchPred = cb.or(
+                        cb.like(cb.lower(root.get("name")), likePattern),
+                        cb.like(cb.lower(root.get("phone")), likePattern),
+                        cb.like(cb.lower(root.get("email")), likePattern),
+                        cb.like(cb.lower(root.get("contactPerson")), likePattern));
+                predicates.add(searchPred);
+            }
+
+            // Filter By Type
+            if (!"all".equalsIgnoreCase(type) && type != null) {
+                try {
+                    com.mushroom.stockkeeper.model.CustomerType typeEnum = com.mushroom.stockkeeper.model.CustomerType
+                            .valueOf(type.toUpperCase());
+                    predicates.add(cb.equal(root.get("type"), typeEnum));
+                } catch (Exception e) {
+                    // Ignore invalid type
+                }
+            }
+
+            // Filter by Minimum Credit Limit
+            if (minCredit != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("creditLimit"), minCredit));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        Page<Customer> customerPage = customerRepository.findAll(spec, pageable);
+
+        model.addAttribute("customerPage", customerPage);
+        model.addAttribute("customers", customerPage.getContent());
+        model.addAttribute("currentType", type);
+
         return "customers/list";
     }
 

@@ -37,22 +37,30 @@ public class UserController {
 
     @PostMapping("/save")
     public String save(@ModelAttribute User user) {
-        // If ID is null, it's a new user, so encode password
+        // Password Validation
         if (user.getId() == null) {
+            // New User
+            if (user.getPassword() == null || user.getPassword().trim().length() < 6) {
+                // Ideally return binding error, but for quick fix throw exception or handle
+                throw new IllegalArgumentException("Password must be at least 6 characters.");
+            }
             user.setPassword(passwordEncoder.encode(user.getPassword()));
         } else {
-            // Edit mode: fetch existing to check if password changed or handle specifically
-            // For simplicity, we'll re-encode if not empty, or keep old if empty?
-            // standard approach: if managing users, admin sets new password.
-            // Let's assume re-save for now. Real apps might separate password reset.
-            // A simple approach for this MVP: Always encode what comes in.
-            // If editing, ideally we don't want to re-hash the hash.
+            // Edit mode
             User existing = userRepository.findById(user.getId()).orElse(null);
-            if (existing != null && !user.getPassword().isEmpty()
-                    && !user.getPassword().equals(existing.getPassword())) {
-                user.setPassword(passwordEncoder.encode(user.getPassword()));
-            } else if (existing != null && (user.getPassword() == null || user.getPassword().isEmpty())) {
-                user.setPassword(existing.getPassword());
+            if (existing != null) {
+                if (user.getPassword() != null && !user.getPassword().isEmpty()) {
+                    if (user.getPassword().trim().length() < 6) {
+                        throw new IllegalArgumentException("Password must be at least 6 characters.");
+                    }
+                    if (!user.getPassword().equals(existing.getPassword())) {
+                        // Only re-encode if it's not the existing hash (unlikely collision but safe)
+                        user.setPassword(passwordEncoder.encode(user.getPassword()));
+                    }
+                } else {
+                    // Empty password = keep existing
+                    user.setPassword(existing.getPassword());
+                }
             }
         }
         userRepository.save(user);
