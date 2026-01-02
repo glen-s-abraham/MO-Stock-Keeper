@@ -16,9 +16,11 @@ public class Customer {
     @Column(nullable = false)
     private String name;
 
-    private String phoneNumber;
+    private String phone;
     private String email;
     private String address;
+    private String contactPerson;
+    private String tin;
 
     private boolean isHidden = false;
 

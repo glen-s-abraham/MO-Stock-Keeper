@@ -12,4 +12,8 @@ public interface InventoryUnitRepository extends JpaRepository<InventoryUnit, Lo
     long countByBatchIdAndStatusNot(Long batchId, com.mushroom.stockkeeper.model.InventoryStatus status);
 
     void deleteByBatchId(Long batchId);
+
+    long countBySalesOrderCustomerId(Long customerId);
+
+    long countBySalesOrderCustomerIdAndStatus(Long customerId, com.mushroom.stockkeeper.model.InventoryStatus status);
 }

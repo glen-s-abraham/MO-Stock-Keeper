@@ -81,7 +81,7 @@ public class SalesController {
                 // "Save to Contacts" -> Create Regular Customer
                 customer = new com.mushroom.stockkeeper.model.Customer();
                 customer.setName(name);
-                customer.setPhoneNumber(retailPhone);
+                customer.setPhone(retailPhone);
                 customer.setHidden(false);
                 customer.setType(com.mushroom.stockkeeper.model.CustomerType.RETAIL); // Explicitly RETAIL
                 customerRepository.save(customer);
@@ -89,7 +89,7 @@ public class SalesController {
                 // "One-off" -> Walk-in/Guest
                 customer = new com.mushroom.stockkeeper.model.Customer();
                 customer.setName(name);
-                customer.setPhoneNumber(retailPhone);
+                customer.setPhone(retailPhone);
                 customer.setHidden(true); // HIDDEN from dropdowns
                 customer.setType(com.mushroom.stockkeeper.model.CustomerType.RETAIL); // Explicitly RETAIL
                 customerRepository.save(customer);
@@ -105,7 +105,7 @@ public class SalesController {
                 }
                 customer = new com.mushroom.stockkeeper.model.Customer();
                 customer.setName(wholesaleNewName.trim());
-                customer.setPhoneNumber(wholesaleNewPhone);
+                customer.setPhone(wholesaleNewPhone);
                 customer.setHidden(false);
                 customerRepository.save(customer);
             } else {

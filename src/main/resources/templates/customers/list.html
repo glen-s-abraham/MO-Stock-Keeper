@@ -1,8 +1,11 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layout/base}">
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+    layout:decorate="~{layout/base}">
+
 <head>
     <title>Customers</title>
 </head>
+
 <body>
     <div layout:fragment="content">
         <div class="d-flex justify-content-between align-items-center mb-4">
@@ -10,9 +13,10 @@
                 <h2 class="mb-1">Customers</h2>
                 <p class="text-muted mb-0">Manage customer details.</p>
             </div>
-            <a th:href="@{/customers/create}" class="btn btn-primary shadow-sm"><i class="bi bi-person-plus me-2"></i>New Customer</a>
+            <a th:href="@{/customers/create}" class="btn btn-primary shadow-sm"><i
+                    class="bi bi-person-plus me-2"></i>New Customer</a>
         </div>
-        
+
         <div class="card shadow-sm">
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -33,8 +37,16 @@
                                 <td th:text="${c.phone}">555-0123</td>
                                 <td th:text="${c.email}">john@example.com</td>
                                 <td class="text-end pe-4">
-                                    <a th:href="@{/customers/edit/{id}(id=${c.id})}" class="btn btn-sm btn-outline-primary border-0 me-1"><i class="bi bi-pencil"></i></a>
-                                    <a th:href="@{/customers/delete/{id}(id=${c.id})}" class="btn btn-sm btn-outline-danger border-0" onclick="return confirm('Delete this customer?');"><i class="bi bi-trash"></i></a>
+                                    <a th:href="@{/customers/view/{id}(id=${c.id})}"
+                                        class="btn btn-sm btn-outline-secondary border-0 me-1" title="View Details"><i
+                                            class="bi bi-eye"></i></a>
+                                    <a th:href="@{/customers/edit/{id}(id=${c.id})}"
+                                        class="btn btn-sm btn-outline-primary border-0 me-1"><i
+                                            class="bi bi-pencil"></i></a>
+                                    <a th:href="@{/customers/delete/{id}(id=${c.id})}"
+                                        class="btn btn-sm btn-outline-danger border-0"
+                                        onclick="return confirm('Delete this customer?');"><i
+                                            class="bi bi-trash"></i></a>
                                 </td>
                             </tr>
                             <tr th:if="${#lists.isEmpty(customers)}">
@@ -52,4 +64,5 @@
         </div>
     </div>
 </body>
+
 </html>

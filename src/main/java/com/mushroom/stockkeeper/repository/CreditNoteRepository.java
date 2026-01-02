@@ -11,4 +11,6 @@ public interface CreditNoteRepository extends JpaRepository<CreditNote, Long> {
 
     @org.springframework.data.jpa.repository.Query("SELECT c.customer.id, SUM(c.remainingAmount) FROM CreditNote c WHERE c.customer.type = 'WHOLESALE' AND c.remainingAmount > 0 GROUP BY c.customer.id")
     java.util.List<Object[]> findWholesaleRemainingCredits();
+
+    long countByCustomerId(Long customerId);
 }

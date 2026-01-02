@@ -61,7 +61,7 @@
                                                 id="wholesaleCustomerSelect" style="width:100%" required>
                                                 <option value="">-- Search Customer --</option>
                                                 <option th:each="c : ${customers}" th:value="${c.id}"
-                                                    th:text="|${c.name} (${c.phoneNumber})|"></option>
+                                                    th:text="|${c.name} (${c.phone})|"></option>
                                             </select>
                                         </div>
                                     </div>

@@ -13,16 +13,56 @@ public class CustomerController {
     private final CustomerRepository customerRepository;
     private final com.mushroom.stockkeeper.repository.SalesOrderRepository orderRepository;
 
+    private final com.mushroom.stockkeeper.repository.CreditNoteRepository creditNoteRepository;
+    private final com.mushroom.stockkeeper.repository.InventoryUnitRepository inventoryUnitRepository;
+
     public CustomerController(CustomerRepository customerRepository,
-            com.mushroom.stockkeeper.repository.SalesOrderRepository orderRepository) {
+            com.mushroom.stockkeeper.repository.SalesOrderRepository orderRepository,
+            com.mushroom.stockkeeper.repository.CreditNoteRepository creditNoteRepository,
+            com.mushroom.stockkeeper.repository.InventoryUnitRepository inventoryUnitRepository) {
         this.customerRepository = customerRepository;
         this.orderRepository = orderRepository;
+        this.creditNoteRepository = creditNoteRepository;
+        this.inventoryUnitRepository = inventoryUnitRepository;
     }
 
     @GetMapping
     public String list(Model model) {
         model.addAttribute("customers", customerRepository.findAll());
         return "customers/list";
+    }
+
+    @GetMapping("/view/{id}")
+    public String view(@PathVariable Long id, Model model) {
+        Customer customer = customerRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid customer Id:" + id));
+
+        // Calculate Product Stats
+        long currentAllocatedUnits = inventoryUnitRepository.countBySalesOrderCustomerId(id);
+        long totalReturned = creditNoteRepository.countByCustomerId(id);
+        long returnedAndStillAllocated = inventoryUnitRepository
+                .countBySalesOrderCustomerIdAndStatus(id, com.mushroom.stockkeeper.model.InventoryStatus.RETURNED);
+
+        // Logic:
+        // Total Sent = (Currently Allocated) + (Returned and Removed/Restocked/Spoiled)
+        // Returned and Removed = Total Returned - Returned Still In Allocation
+        long returnedAndRemoved = totalReturned - returnedAndStillAllocated;
+        long totalSent = currentAllocatedUnits + returnedAndRemoved;
+
+        double returnRate = 0.0;
+        if (totalSent > 0) {
+            returnRate = (double) totalReturned / totalSent * 100.0;
+        }
+
+        model.addAttribute("customer", customer);
+        model.addAttribute("totalSent", totalSent);
+        model.addAttribute("totalReturned", totalReturned);
+        model.addAttribute("returnRate", String.format("%.1f", returnRate));
+
+        // Add financial summary if needed (can reuse Collections logic or keep simple)
+        // For now, MVP stats.
+
+        return "customers/view";
     }
 
     @GetMapping("/create")
