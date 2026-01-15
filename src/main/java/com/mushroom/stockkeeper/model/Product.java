@@ -4,9 +4,9 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 @Entity
-@Table(name = "products")
+@Table(name = "sk_products")
 @Data
-@org.hibernate.annotations.SQLDelete(sql = "UPDATE products SET deleted = true WHERE id = ?")
+@org.hibernate.annotations.SQLDelete(sql = "UPDATE sk_products SET deleted = true WHERE id = ?")
 @org.hibernate.annotations.SQLRestriction("deleted = false")
 public class Product {
     @Id
@@ -39,6 +39,11 @@ public class Product {
 
     @Column(precision = 10, scale = 2)
     private java.math.BigDecimal wholesalePrice;
+
+    private String fssaiLicenseNumber;
+
+    @Column(precision = 10, scale = 2)
+    private java.math.BigDecimal mrp;
 
     private boolean deleted = false;
 }

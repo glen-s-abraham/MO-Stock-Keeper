@@ -64,11 +64,19 @@
                                 </div>
 
                                 <div class="col-md-6">
-                                    <label class="form-label text-muted small">Wholesale Price</label>
                                     <div class="input-group">
                                         <span class="input-group-text bg-light border-end-0 text-muted">₹</span>
                                         <input type="number" step="0.01" class="form-control ps-2"
                                             th:field="*{wholesalePrice}" placeholder="0.00">
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small">MRP (Label Price)</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0 text-muted">₹</span>
+                                        <input type="number" step="0.01" class="form-control ps-2" th:field="*{mrp}"
+                                            placeholder="0.00">
                                     </div>
                                 </div>
 
@@ -82,6 +90,12 @@
                                     <label class="form-label text-muted small">Storage Instructions (For Label)</label>
                                     <input type="text" class="form-control" th:field="*{storageInstructions}"
                                         placeholder="e.g. Keep Refrigerated at 4°C">
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label text-muted small">FSSAI License No. (Optional)</label>
+                                    <input type="text" class="form-control" th:field="*{fssaiLicenseNumber}"
+                                        placeholder="e.g. 10012345678901">
                                 </div>
                             </div>
 

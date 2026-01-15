@@ -63,6 +63,7 @@ public class BatchService {
         HarvestBatch savedBatch = batchRepository.save(batch);
 
         // Generate Inventory Units
+        java.util.List<InventoryUnit> unitsToSave = new java.util.ArrayList<>(quantity);
         IntStream.range(0, quantity).forEach(i -> {
             InventoryUnit unit = new InventoryUnit();
             unit.setBatch(savedBatch);
@@ -78,8 +79,10 @@ public class BatchService {
             String qrContent = "U:" + uuid; // Keep it short for better scanning
             unit.setQrCodeContent(qrContent);
 
-            unitRepository.save(unit);
+            unitsToSave.add(unit);
         });
+
+        unitRepository.saveAll(unitsToSave);
 
         return savedBatch;
     }

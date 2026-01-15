@@ -36,7 +36,8 @@ public class SalesService {
         so.setCustomer(customer);
         so.setOrderDate(LocalDate.now());
         so.setStatus(SalesOrderStatus.DRAFT);
-        so.setOrderNumber("SO-" + System.currentTimeMillis());
+        // Robust Order Number: SO-UUID (first 8 chars) or similar
+        so.setOrderNumber("SO-" + java.util.UUID.randomUUID().toString().substring(0, 13).toUpperCase());
 
         // New Fields
         so.setOrderType(orderType);

@@ -7,6 +7,16 @@
     <link th:href="@{/css/bootstrap.min.css}" rel="stylesheet">
     <style>
         @media print {
+            @page {
+                size: auto;
+                margin: 0;
+            }
+
+            body {
+                margin: 0;
+                padding: 0;
+            }
+
             .no-print {
                 display: none;
             }
@@ -19,13 +29,13 @@
         /* Default Grid (A4_40) fallback */
         .label-grid {
             display: grid;
-            gap: 10px;
-            padding: 10px;
+            gap: 0;
+            padding: 0;
         }
 
         .label-item {
             border: 1px dashed #ccc;
-            padding: 10px;
+            padding: 1px;
             text-align: center;
             page-break-inside: avoid;
             background: white;
@@ -154,34 +164,50 @@
 
         <div class="label-grid">
             <div th:each="u : ${units}" class="label-item">
-                <div class="d-flex align-items-center justify-content-center flex-column">
+                <div class="d-flex align-items-center justify-content-center flex-column h-100 w-100 text-center">
                     <!-- Configurable Company Name -->
-                    <div th:if="${companyName != null && !companyName.isEmpty()}" class="fw-bold text-uppercase"
-                        style="font-size: 8pt; border-bottom: 1px solid #000; margin-bottom: 2px;"
+                    <div th:if="${companyName != null && !companyName.isEmpty()}" class="fw-bold text-uppercase w-100"
+                        style="font-size: 12pt; border-bottom: 2px solid #000; margin-bottom: 0; line-height: 1;"
                         th:text="${companyName}">Mushroom Operations</div>
 
                     <div th:if="${companyName == null || companyName.isEmpty()}" class="text-danger no-print"
-                        style="font-size: 6pt;">
-                        <span sec:authorize="hasRole('ADMIN')"><a href="/admin/settings" target="_blank">Set Company
+                        style="font-size: 8pt;">
+                        <span sec:authorize="hasRole('ADMIN')"><a href="/admin/settings" target="_blank">Set
                                 Name</a></span>
-                        <span sec:authorize="!hasRole('ADMIN')">Ask Admin to Config Name</span>
+                        <span sec:authorize="!hasRole('ADMIN')">Config Name</span>
                     </div>
 
-                    <img th:src="'data:image/png;base64,' + ${qrCodes.get(u.id)}" class="qr-img" />
-                    <div class="fw-bold mt-1" style="font-size: 10pt; font-family: monospace;" th:text="${u.uuid}">UUID
+                    <img th:src="'data:image/png;base64,' + ${qrCodes.get(u.id)}" class="qr-img"
+                        style="max-height: 40%; width: auto; margin: 0;" />
+
+                    <div class="fw-bold w-100"
+                        style="font-size: 18pt; font-family: monospace; line-height: 0.85; white-space: nowrap; overflow: hidden; text-overflow: clip;"
+                        th:text="${u.uuid}">UUID</div>
+
+                    <div class="text-uppercase fw-bold w-100" style="font-size: 12pt; line-height: 0.9;"
+                        th:text="${batch.product.name}">PROD</div>
+
+                    <div class="w-100" style="font-size: 12pt; line-height: 0.9; margin-top: 1px;">
+                        Pkd: <span th:text="${batch.batchDate}">DATE</span> | Exp: <span
+                            th:text="${batch.expiryDate}">DATE</span>
                     </div>
-                    <div class="text-uppercase fw-bold" style="font-size: 8pt;" th:text="${batch.product.name}">PROD
-                    </div>
-                    <div style="font-size: 7pt;">Pkd: <span th:text="${batch.batchDate}">DATE</span> | Exp: <span
-                            th:text="${batch.expiryDate}">DATE</span></div>
-                    <div style="font-size: 6pt; font-style: italic;"
+
+                    <div class="w-100" style="font-size: 10pt; font-style: italic; line-height: 0.9;"
                         th:if="${batch.product.storageInstructions != null}"
                         th:text="${batch.product.storageInstructions}">Storage</div>
 
+                    <div th:if="${batch.product.fssaiLicenseNumber != null && !batch.product.fssaiLicenseNumber.isEmpty()}"
+                        class="w-100" style="font-size: 10pt; margin-top: 0; font-weight: bold; line-height: 0.9;"
+                        th:text="'FSSAI Lic No: ' + ${batch.product.fssaiLicenseNumber}">FSSAI</div>
+
+                    <div th:if="${batch.product.mrp != null}" class="w-100"
+                        style="font-size: 12pt; margin-top: 0; font-weight: bold; line-height: 0.9;"
+                        th:text="'MRP: ₹' + ${batch.product.mrp}">MRP: ₹100.00</div>
+
                     <!-- Configurable Contact -->
-                    <div th:if="${contactNumber != null && !contactNumber.isEmpty()}"
-                        style="font-size: 6pt; margin-top: 2px;" th:text="'Contact: ' + ${contactNumber}">Contact: +91
-                        99999 88888</div>
+                    <div th:if="${contactNumber != null && !contactNumber.isEmpty()}" class="w-100"
+                        style="font-size: 10pt; margin-top: 0; font-weight: bold; line-height: 0.9;"
+                        th:text="'Contact: ' + ${contactNumber}">Contact</div>
                 </div>
             </div>
         </div>

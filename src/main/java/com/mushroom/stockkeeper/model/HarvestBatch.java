@@ -6,7 +6,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "harvest_batches")
+@Table(name = "sk_harvest_batches")
 @Data
 public class HarvestBatch {
     @Id

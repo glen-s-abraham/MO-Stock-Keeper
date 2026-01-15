@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 @Entity
-@Table(name = "app_settings")
+@Table(name = "sk_app_settings")
 @Data
 public class AppSetting {
     @Id

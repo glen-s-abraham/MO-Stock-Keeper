@@ -4,9 +4,9 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 @Entity
-@Table(name = "customers")
+@Table(name = "sk_customers")
 @Data
-@org.hibernate.annotations.SQLDelete(sql = "UPDATE customers SET deleted = true WHERE id = ?")
+@org.hibernate.annotations.SQLDelete(sql = "UPDATE sk_customers SET deleted = true WHERE id = ?")
 @org.hibernate.annotations.SQLRestriction("deleted = false")
 public class Customer {
     @Id

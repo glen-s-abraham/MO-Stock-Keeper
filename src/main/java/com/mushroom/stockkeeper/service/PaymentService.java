@@ -55,7 +55,8 @@ public class PaymentService {
 
     @Transactional
     public void settleAccount(Long customerId, BigDecimal newCashInjection) {
-        Customer customer = customerRepository.findById(customerId).orElseThrow();
+        // CONCURRENCY FIX: Lock the customer to prevent parallel settlements
+        Customer customer = customerRepository.findByIdForUpdate(customerId).orElseThrow();
         // Redeeem Credits / Settle Account Logic
 
         // 1. Sweep Negative Invoices (Legacy/Overflow) to create new credits if any
@@ -99,12 +100,10 @@ public class PaymentService {
         BigDecimal totalCreditTaken = BigDecimal.ZERO;
 
         if (creditNeeded.compareTo(BigDecimal.ZERO) > 0) {
-            List<CreditNote> notes = creditNoteRepository.findAll().stream()
-                    .filter(n -> n.getCustomer().getId().equals(customerId))
-                    .filter(n -> n.getRemainingAmount() != null
-                            && n.getRemainingAmount().compareTo(BigDecimal.ZERO) > 0)
-                    .sorted(Comparator.comparing(CreditNote::getNoteDate)) // FIFO usage
-                    .collect(java.util.stream.Collectors.toList());
+            // PERFORMANCE: Use targeted query instead of findAll()
+            List<CreditNote> notes = creditNoteRepository
+                    .findByCustomerIdAndRemainingAmountGreaterThanOrderByNoteDateAsc(
+                            customerId, BigDecimal.ZERO);
 
             for (CreditNote note : notes) {
                 if (totalCreditTaken.compareTo(creditNeeded) >= 0)

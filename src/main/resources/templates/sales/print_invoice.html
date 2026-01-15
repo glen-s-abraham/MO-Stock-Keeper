@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
+
 <head>
     <title>Invoice</title>
     <link th:href="@{/css/bootstrap.min.css}" rel="stylesheet">
@@ -10,38 +11,72 @@
             background: #fff;
             color: #000;
         }
+
         .invoice-box {
             max-width: 800px;
             margin: auto;
-            padding: 30px;
+            padding: 15px;
             border: 1px solid #eee;
             font-size: 16px;
             line-height: 24px;
         }
+
         @media print {
+            @page {
+                margin: 0.5cm;
+                size: auto;
+            }
+
+            body {
+                margin: 0;
+                padding: 0;
+                font-size: 18px;
+                /* Increased from default */
+            }
+
             .invoice-box {
                 border: none;
                 padding: 0;
+                max-width: none;
+                /* Allow full width */
+                width: 100%;
+                font-size: 18px;
+                line-height: 1.5;
             }
+
             .no-print {
                 display: none;
             }
+
+            /* Adjust table density if needed, or let it scale */
+            .table-invoice th,
+            .table-invoice td {
+                padding: 8px 4px;
+                /* Slightly tighter padding to fit content if font is big */
+                font-size: 18px;
+            }
         }
+
         .header-title {
             font-size: 32px;
             font-weight: 700;
             color: #333;
         }
+
         .header-subtitle {
             font-size: 14px;
             color: #777;
         }
+
         .table-invoice th {
-            background-color: #f8f9fa !important; /* Force print bg */
+            background-color: #f8f9fa !important;
+            /* Force print bg */
             -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
     </style>
 </head>
+
 <body>
 
     <div class="container mt-4 mb-4 no-print text-center">
@@ -53,16 +88,21 @@
         <!-- Header -->
         <div class="row mb-5">
             <div class="col-8">
-                <h1 class="header-title" th:text="${settings.getOrDefault('company_name', 'Mushroom Company')}">Company Name</h1>
-                <div th:utext="${#strings.replace(settings.getOrDefault('company_address', 'Address Line 1'), '\n', '<br>')}">Address</div>
+                <h1 class="header-title" th:text="${settings.getOrDefault('company_name', 'Mushroom Company')}">Company
+                    Name</h1>
+                <div
+                    th:utext="${#strings.replace(settings.getOrDefault('company_address', 'Address Line 1'), '\n', '<br>')}">
+                    Address</div>
                 <div>Phone: <span th:text="${settings.getOrDefault('company_phone', 'N/A')}"></span></div>
                 <div>Email: <span th:text="${settings.getOrDefault('company_email', 'N/A')}"></span></div>
-                <div th:if="${settings.get('company_tax_id') != null}">Tax ID: <span th:text="${settings.get('company_tax_id')}"></span></div>
+                <div th:if="${settings.get('company_tax_id') != null}">Tax ID: <span
+                        th:text="${settings.get('company_tax_id')}"></span></div>
             </div>
             <div class="col-4 text-end">
                 <h2 class="text-uppercase text-secondary mb-3">Invoice</h2>
                 <h5 class="mb-0" th:text="${invoice != null ? invoice.invoiceNumber : 'DRAFT'}">INV-001</h5>
-                <small class="text-muted">Date: <span th:text="${invoice != null ? invoice.invoiceDate : #temporals.format(order.orderDate, 'yyyy-MM-dd')}"></span></small>
+                <small class="text-muted">Date: <span
+                        th:text="${invoice != null ? invoice.invoiceDate : #temporals.format(order.orderDate, 'yyyy-MM-dd')}"></span></small>
             </div>
         </div>
 
@@ -75,8 +115,8 @@
                 <div th:text="${order.customer.phoneNumber}">Phone</div>
             </div>
             <div class="col-6 text-end">
-                 <!-- Order Details -->
-                 <div class="mb-1">Order #: <span th:text="${order.orderNumber}"></span></div>
+                <!-- Order Details -->
+                <div class="mb-1">Order #: <span th:text="${order.orderNumber}"></span></div>
             </div>
         </div>
 
@@ -113,4 +153,5 @@
     </div>
 
 </body>
+
 </html>
