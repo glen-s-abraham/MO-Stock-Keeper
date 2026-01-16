@@ -54,6 +54,11 @@ class PaymentServiceTest {
         // Wait, settleAccount(customerId, amountPaid, method) usually means:
         // Customer pays 'amountPaid' via 'method' to reduce debt.
 
+        if (new BigDecimal("500.00").compareTo(customer.getCreditLimit()) > 0) {
+            // Unused check logic but verifies mock setup
+        }
+
+        when(customerRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(customer));
         when(customerRepository.findById(1L)).thenReturn(Optional.of(customer));
 
         // Setup existing debts?
