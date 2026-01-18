@@ -41,9 +41,9 @@ public class BatchService {
         batch.setTotalUnits(quantity);
         batch.setBatchDate(batchDate != null ? batchDate : LocalDate.now());
 
-        // Edge Case: Future Dates
-        if (batch.getBatchDate().isAfter(LocalDate.now())) {
-            throw new IllegalArgumentException("Harvest date cannot be in the future.");
+        // Edge Case: Future Dates - Allow packing for tomorrow (1 day buffer)
+        if (batch.getBatchDate().isAfter(LocalDate.now().plusDays(1))) {
+            throw new IllegalArgumentException("Harvest date cannot be more than 1 day in the future.");
         }
 
         // Calculate Expiry
@@ -113,9 +113,9 @@ public class BatchService {
     public void updateBatch(Long batchId, LocalDate newDate) throws Exception {
         HarvestBatch batch = batchRepository.findById(batchId).orElseThrow();
 
-        // 1. Validate Future Date
-        if (newDate.isAfter(LocalDate.now())) {
-            throw new IllegalArgumentException("Harvest date cannot be in the future.");
+        // 1. Validate Future Date (Allow tomorrow)
+        if (newDate.isAfter(LocalDate.now().plusDays(1))) {
+            throw new IllegalArgumentException("Harvest date cannot be more than 1 day in the future.");
         }
 
         // 2. Check Integrity: Cannot update if items are sold/returned
