@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layout/base}">
+<head>
+    <title>Harvest Dashboard</title>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="mb-0">Harvest Dashboard</h2>
+        </div>
+
+        <!-- Lifetime Harvest Section -->
+        <div class="card shadow-sm mb-5">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-graph-up-arrow me-2"></i>Lifetime Harvest Totals</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Product Name</th>
+                                <th class="text-end">Total Harvest Quantity (Units)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="total : ${lifetimeTotals}">
+                                <td class="fw-bold" th:text="${total.productName}">Product</td>
+                                <td class="text-end fs-5" th:text="${total.totalQuantity}">0</td>
+                            </tr>
+                            <tr th:if="${#lists.isEmpty(lifetimeTotals)}">
+                                <td colspan="2" class="text-center text-muted py-4">No harvest data available in the system yet.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Periodic Snapshot Section -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-light border-bottom-0 pt-3 px-3 pb-0">
+                <ul class="nav nav-tabs border-bottom-0" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <a class="nav-link" th:classappend="${activeTab == 'monthly'} ? 'active fw-bold' : ''" 
+                           th:href="@{/dashboard/harvest(tab='monthly')}">Monthly Snapshot</a>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <a class="nav-link" th:classappend="${activeTab == 'yearly'} ? 'active fw-bold' : ''" 
+                           th:href="@{/dashboard/harvest(tab='yearly')}">Yearly Snapshot</a>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body border-top">
+                
+                <!-- Filters Form -->
+                <form method="get" th:action="@{/dashboard/harvest}" class="row g-3 align-items-end mb-4 bg-light p-3 rounded">
+                    <input type="hidden" name="tab" th:value="${activeTab}" />
+                    
+                    <div class="col-md-3" th:if="${activeTab == 'monthly'}">
+                        <label for="month" class="form-label text-muted small text-uppercase">Month</label>
+                        <select id="month" name="month" class="form-select">
+                            <option value="1" th:selected="${selectedMonth == 1}">January</option>
+                            <option value="2" th:selected="${selectedMonth == 2}">February</option>
+                            <option value="3" th:selected="${selectedMonth == 3}">March</option>
+                            <option value="4" th:selected="${selectedMonth == 4}">April</option>
+                            <option value="5" th:selected="${selectedMonth == 5}">May</option>
+                            <option value="6" th:selected="${selectedMonth == 6}">June</option>
+                            <option value="7" th:selected="${selectedMonth == 7}">July</option>
+                            <option value="8" th:selected="${selectedMonth == 8}">August</option>
+                            <option value="9" th:selected="${selectedMonth == 9}">September</option>
+                            <option value="10" th:selected="${selectedMonth == 10}">October</option>
+                            <option value="11" th:selected="${selectedMonth == 11}">November</option>
+                            <option value="12" th:selected="${selectedMonth == 12}">December</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-3" th:if="${activeTab == 'monthly' or activeTab == 'yearly'}">
+                        <label for="year" class="form-label text-muted small text-uppercase">Year</label>
+                        <select id="year" name="year" class="form-select">
+                            <option th:each="y : ${availableYears}" th:value="${y}" th:text="${y}" th:selected="${selectedYear == y}"></option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-2" th:if="${activeTab == 'monthly' or activeTab == 'yearly'}">
+                        <button type="submit" class="btn btn-primary w-100">Apply Filter</button>
+                    </div>
+                </form>
+
+                <div th:if="${activeTab == 'monthly' or activeTab == 'yearly'}">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0 text-muted" th:if="${activeTab == 'monthly'}">
+                            Showing data for: <span th:text="${T(java.time.Month).of(selectedMonth).name() + ' ' + selectedYear}"></span>
+                        </h6>
+                        <h6 class="mb-0 text-muted" th:if="${activeTab == 'yearly'}">
+                            Showing data for Year: <span th:text="${selectedYear}"></span>
+                        </h6>
+                        
+                        <div th:if="${activeTab == 'monthly'}" class="btn-group btn-group-sm" role="group" aria-label="Distribution Toggle">
+                            <input type="radio" class="btn-check" name="distributionToggle" id="distDaily" value="daily" autocomplete="off" checked>
+                            <label class="btn btn-outline-secondary" for="distDaily">Daily</label>
+                            <input type="radio" class="btn-check" name="distributionToggle" id="distWeekly" value="weekly" autocomplete="off">
+                            <label class="btn btn-outline-secondary" for="distWeekly">Weekly</label>
+                        </div>
+                    </div>
+
+                    <div class="mb-5 bg-white p-3 border rounded shadow-sm">
+                        <canvas id="harvestChart" style="max-height: 300px; width: 100%;"></canvas>
+                    </div>
+
+                    <!-- Snapshot Data Table -->
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Product Name</th>
+                                <th class="text-end">Harvest Quantity (Units)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="total : ${snapshotTotals}">
+                                <td class="fw-bold" th:text="${total.productName}">Product</td>
+                                <td class="text-end" th:text="${total.totalQuantity}">0</td>
+                            </tr>
+                            <tr th:if="${#lists.isEmpty(snapshotTotals)}">
+                                <td colspan="2" class="text-center text-muted py-4">No harvest data available for this period.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <script th:inline="javascript">
+            /*<![CDATA[*/
+            document.addEventListener("DOMContentLoaded", function() {
+                const activeTab = /*[[${activeTab}]]*/ 'lifetime';
+                if (activeTab === 'monthly' || activeTab === 'yearly') {
+                    const year = /*[[${selectedYear}]]*/ 2026;
+                    const month = /*[[${selectedMonth}]]*/ 1;
+                    
+                    const ctx = document.getElementById('harvestChart');
+                    let currentChart = null;
+
+                    function loadChart(distribution) {
+                        const url = `/dashboard/harvest/chart-data?tab=${activeTab}&distribution=${distribution}&year=${year}&month=${month}`;
+                        
+                        fetch(url)
+                            .then(response => response.json())
+                            .then(data => {
+                                if (currentChart) {
+                                    currentChart.destroy();
+                                }
+                                currentChart = new Chart(ctx, {
+                                    type: 'bar',
+                                    data: {
+                                        labels: data.labels,
+                                        datasets: data.datasets
+                                    },
+                                    options: {
+                                        responsive: true,
+                                        maintainAspectRatio: false,
+                                        plugins: {
+                                            legend: { position: 'top' },
+                                            title: { display: false }
+                                        },
+                                        scales: {
+                                            y: { beginAtZero: true }
+                                        }
+                                    }
+                                });
+                            })
+                            .catch(error => console.error("Error loading chart data:", error));
+                    }
+
+                    // Initial load
+                    if (activeTab === 'monthly') {
+                        loadChart('daily');
+                        
+                        document.querySelectorAll('input[name="distributionToggle"]').forEach(elem => {
+                            elem.addEventListener("change", function(event) {
+                                loadChart(event.target.value);
+                            });
+                        });
+                    } else if (activeTab === 'yearly') {
+                        loadChart('monthly');
+                    }
+                }
+            });
+            /*]]>*/
+        </script>
+    </div>
+</body>
+</html>

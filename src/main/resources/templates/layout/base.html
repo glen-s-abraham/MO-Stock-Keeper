@@ -43,6 +43,9 @@
 
     <!-- Custom JS -->
     <script th:src="@{/js/scripts.js}"></script>
+    
+    <!-- Chart.js (CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <meta name="_csrf" th:content="${_csrf.token}" />
     <meta name="_csrf_header" th:content="${_csrf.headerName}" />
@@ -62,6 +65,7 @@
             <div class="collapse navbar-collapse" id="navbarMain">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     <li class="nav-item"><a class="nav-link" href="#" th:href="@{/dashboard}">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" th:href="@{/dashboard/harvest}">Harvest Dashboard</a></li>
                     <li class="nav-item"><a class="nav-link" href="#" th:href="@{/products}">Products</a></li>
                     <li class="nav-item"><a class="nav-link" href="#" th:href="@{/batches}">Batches</a></li>
                     <li class="nav-item"><a class="nav-link" href="#" th:href="@{/sales}">Sales</a></li>

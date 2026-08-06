@@ -71,7 +71,7 @@
                 </a>
             </div>
             
-             <!-- Admin Actions -->
+            <!-- Admin Actions -->
             <div class="col-6 col-md-3" th:if="${#authorization.expression('hasRole(''ADMIN'')')}">
                 <a href="/products" class="text-decoration-none">
                     <div class="card h-100 text-center p-4 shadow-sm hover-shadow">
@@ -81,6 +81,21 @@
                             </div>
                             <h6 class="text-dark mb-0">Products</h6>
                             <small class="text-muted">Manage inventory types</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Harvest Dashboard Actions -->
+            <div class="col-6 col-md-3" th:if="${#authorization.expression('hasRole(''ADMIN'')') or #authorization.expression('hasRole(''MANAGER'')')}">
+                <a href="/dashboard/harvest" class="text-decoration-none">
+                    <div class="card h-100 text-center p-4 shadow-sm hover-shadow">
+                        <div class="card-body">
+                            <div class="rounded-circle bg-success text-white p-3 d-inline-block mb-3">
+                                <i class="bi bi-graph-up-arrow fs-2"></i>
+                            </div>
+                            <h6 class="text-dark mb-0">Harvest Data</h6>
+                            <small class="text-muted">View harvest statistics</small>
                         </div>
                     </div>
                 </a>
