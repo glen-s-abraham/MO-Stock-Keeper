@@ -1,0 +1,40 @@
+name: Build and Deploy MO Stock Keeper
+
+on:
+  workflow_dispatch: 
+  push:
+    branches: [ "master" ]
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
+
+    steps:         
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # --- Set profile to PROD ---
+      - name: Set Profile to Prod in Properties
+        run: |
+          # Searches for the active profile line and replaces it with 'prod'
+          sed -i 's/^spring.profiles.active=.*/spring.profiles.active=prod/' src/main/resources/application.properties
+          
+          # Prints the updated line to your GitHub Action logs so you can verify it worked
+          cat src/main/resources/application.properties | grep spring.profiles.active
+      # ---------------------------
+
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
+
+      - name: Copy Jar to Deployment Folder
+        run: |
+          sudo mkdir -p /opt/mo-stock-keeper
+          sudo cp target/mo-stock-keeper-0.0.1-SNAPSHOT.jar /opt/mo-stock-keeper/mo-stock-keeper-0.0.1-SNAPSHOT.jar
+
+      - name: Restart Service
+        run: |
+          sudo systemctl restart mo-stock-keeper.service
+          
+      - name: Check Status
+        run: |
+          systemctl status mo-stock-keeper.service --no-pager
