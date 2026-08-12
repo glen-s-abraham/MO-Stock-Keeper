@@ -260,6 +260,10 @@
                     const paddingVertical = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
                     const paddingHorizontal = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
 
+                    // Force parent to top-left alignment so it doesn't offset the unscaled block
+                    label.style.justifyContent = 'flex-start';
+                    label.style.alignItems = 'flex-start';
+
                     const availHeight = label.clientHeight - paddingVertical;
                     const availWidth = label.clientWidth - paddingHorizontal;
                     
