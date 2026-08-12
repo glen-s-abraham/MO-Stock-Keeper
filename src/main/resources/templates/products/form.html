@@ -79,6 +79,21 @@
                                             placeholder="0.00">
                                     </div>
                                 </div>
+                                
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small">Net Weight (For Label)</label>
+                                    <div class="input-group">
+                                        <input type="number" step="0.01" class="form-control" th:field="*{netWeight}"
+                                            placeholder="200">
+                                        <select class="form-select" th:field="*{netWeightUom}" style="max-width: 100px;">
+                                            <option value="">Unit</option>
+                                            <option value="g">g</option>
+                                            <option value="kg">kg</option>
+                                            <option value="ml">ml</option>
+                                            <option value="L">L</option>
+                                        </select>
+                                    </div>
+                                </div>
 
                                 <div class="col-12">
                                     <label class="form-label text-muted small">Description</label>

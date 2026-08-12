@@ -202,7 +202,7 @@
                             Exp: <span class="fw-bold text-uppercase" style="font-size: 9pt;" th:text="${batch.expiryDate}"></span>
                         </div>
                         <div class="col-6 border-start ps-1">
-                            Net Wt: <span class="fw-bold" th:text="${batch.product.nutritionBaseUnitValue + batch.product.nutritionBaseUnitType}">200g</span><br>
+                            Net Wt: <span class="fw-bold" th:text="${batch.product.netWeight != null ? batch.product.netWeight + (batch.product.netWeightUom != null ? batch.product.netWeightUom : '') : ''}">200g</span><br>
                             <span th:if="${batch.product.mrp != null}" th:text="'MRP: ₹' + ${batch.product.mrp} + ' (Incl. taxes)'">MRP</span><br>
                             <span class="fst-italic fw-bold border border-dark px-1 bg-light d-inline-block mt-1" style="font-size: 8pt;" th:text="${batch.product.storageInstructions}">Storage</span>
                         </div>

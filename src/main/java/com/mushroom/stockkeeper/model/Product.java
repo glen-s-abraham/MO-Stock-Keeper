@@ -45,6 +45,11 @@ public class Product {
     @Column(precision = 10, scale = 2)
     private java.math.BigDecimal mrp;
 
+    @Column(precision = 10, scale = 2)
+    private java.math.BigDecimal netWeight;
+
+    private String netWeightUom; // e.g., 'g', 'kg'
+
     private boolean deleted = false;
 
     // Nutrition values configuration

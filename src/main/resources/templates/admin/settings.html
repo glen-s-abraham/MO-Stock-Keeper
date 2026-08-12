@@ -28,8 +28,12 @@
                             <input type="text" class="form-control" name="company_phone" th:value="${settings.get('company_phone')}">
                         </div>
                         <div class="col-12">
-                            <label class="form-label">Address</label>
-                            <textarea class="form-control" name="company_address" rows="3" th:text="${settings.get('company_address')}"></textarea>
+                            <label class="form-label">Registered Office Address (Grown & Packed By)</label>
+                            <textarea class="form-control" name="company_registered_office" rows="2" th:text="${settings.get('company_registered_office')}"></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Customer Care Address</label>
+                            <textarea class="form-control" name="company_customer_care" rows="2" th:text="${settings.get('company_customer_care')}"></textarea>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Email</label>
