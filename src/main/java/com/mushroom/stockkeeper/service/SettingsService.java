@@ -98,4 +98,27 @@ public class SettingsService {
             appSettingRepository.save(setting);
         }
     }
+
+    @jakarta.annotation.PostConstruct
+    public void migrateDummyAddresses() {
+        String oldAddress = appSettingRepository.findBySettingKey("company_address")
+                .map(AppSetting::getSettingValue)
+                .orElse("");
+
+        if (!oldAddress.trim().isEmpty()) {
+            Optional<AppSetting> regOpt = appSettingRepository.findBySettingKey(KEY_REGISTERED_OFFICE);
+            if (regOpt.isPresent() && regOpt.get().getSettingValue().contains("123 Farm Lane")) {
+                AppSetting reg = regOpt.get();
+                reg.setSettingValue(oldAddress);
+                appSettingRepository.save(reg);
+            }
+
+            Optional<AppSetting> careOpt = appSettingRepository.findBySettingKey(KEY_CUSTOMER_CARE);
+            if (careOpt.isPresent() && careOpt.get().getSettingValue().contains("7, Landscape Shire")) {
+                AppSetting care = careOpt.get();
+                care.setSettingValue(oldAddress);
+                appSettingRepository.save(care);
+            }
+        }
+    }
 }

@@ -147,6 +147,18 @@ public class DataInitializer {
             }
 
             // Global Settings
+            String fallbackAddress = settingsService.getCompanyName() != null ? "" : "123 Farm Lane, Village Bhatpal, Canacona, Goa 403702";
+            try {
+                fallbackAddress = settingsService.getRegisteredOfficeAddress(); // check if empty
+                if (fallbackAddress == null || fallbackAddress.isEmpty()) {
+                     fallbackAddress = "123 Farm Lane, Village Bhatpal, Canacona, Goa 403702";
+                }
+            } catch (Exception e) {}
+            // Wait, this is DataInitializer. Better to just remove the hardcoded Goa address entirely 
+            // if the user already has a company_address. Let's just do it directly with Repositories if we had them.
+            // Since we have settingsService, let's use it properly.
+            
+            // To be completely safe and avoid wiping their custom address in fresh setups:
             if (settingsService.getRegisteredOfficeAddress() == null || settingsService.getRegisteredOfficeAddress().isEmpty()) {
                 settingsService.updateSetting(com.mushroom.stockkeeper.service.SettingsService.KEY_REGISTERED_OFFICE, "123 Farm Lane, Village Bhatpal, Canacona, Goa 403702");
             }
