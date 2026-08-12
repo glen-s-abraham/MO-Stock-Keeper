@@ -124,7 +124,7 @@
 
         .sheet-THERMAL_CUSTOM .label-item {
             border: none;
-            padding: 0.5mm;
+            padding: 0mm;
             page-break-after: always;
             display: flex;
             flex-direction: column;
@@ -164,15 +164,15 @@
 
         <div class="label-grid">
             <div th:each="u : ${units}" class="label-item">
-                <div class="d-flex flex-column w-100" style="text-align: left; font-size: 10pt; line-height: 1.05;">
+                <div class="d-flex flex-column w-100" style="text-align: left; font-size: 11pt; line-height: 1;">
                     <!-- Top section: Veg symbol, Product Name, FSSAI -->
                     <div class="d-flex justify-content-between align-items-start w-100 mb-0">
                         <div class="border border-success d-flex justify-content-center align-items-center" style="width: 10mm; height: 10mm; min-width: 10mm; border-width: 2px !important; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
                             <div class="bg-success rounded-circle" style="width: 5mm; height: 5mm; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></div>
                         </div>
-                        <div class="text-center flex-grow-1 px-2">
-                            <div class="fw-bold" style="font-size: 11pt;" th:text="${batch.product.name}">PROD</div>
-                            <div th:if="${batch.product.fssaiLicenseNumber != null}" class="fw-bold" th:text="'FSSAI Lic No: ' + ${batch.product.fssaiLicenseNumber}">FSSAI</div>
+                        <div class="text-center flex-grow-1 px-1">
+                            <div class="fw-bold" style="font-size: 13pt;" th:text="${batch.product.name}">PROD</div>
+                            <div th:if="${batch.product.fssaiLicenseNumber != null}" class="fw-bold" style="font-size: 9pt;" th:text="'FSSAI Lic No: ' + ${batch.product.fssaiLicenseNumber}">FSSAI</div>
                         </div>
                         <!-- QR Code removed per FR-009 -->
                         <div style="display: none;">
@@ -181,30 +181,30 @@
                     </div>
 
                     <!-- Company Info -->
-                    <div class="row g-0 mb-0" style="font-size: 8pt;">
+                    <div class="row g-0 mb-0 border-top" style="font-size: 9pt;">
                         <div class="col-6 pe-1">
                             <strong>GROWN & PACKED BY:</strong><br>
                             <span th:text="${companyName}">Mushroom Operations</span><br>
-                            <span th:text="${registeredOfficeAddress}">Address</span>
+                            <span style="font-size: 8pt;" th:text="${registeredOfficeAddress}">Address</span>
                         </div>
                         <div class="col-6 ps-1 border-start">
                             <strong>CUSTOMER CARE:</strong><br>
-                            <span th:text="${customerCareAddress}">Address</span><br>
-                            <span class="fw-bold" style="font-size: 9pt;" th:text="'Tel: ' + ${contactNumber}">Contact</span>
+                            <span style="font-size: 8pt;" th:text="${customerCareAddress}">Address</span><br>
+                            <span class="fw-bold" style="font-size: 10pt;" th:text="'Tel: ' + ${contactNumber}">Contact</span>
                         </div>
                     </div>
 
                     <!-- Batch & Product Details -->
-                    <div class="row g-0 mb-0 border-top border-bottom py-1 mt-1">
-                        <div class="col-6">
+                    <div class="row g-0 mb-0 border-top border-bottom">
+                        <div class="col-6 pe-1">
                             Batch No: <span class="fw-bold" th:text="${batch.batchCode}"></span><br>
-                            Pkd: <span class="fw-bold" style="font-size: 9pt;" th:text="${batch.batchDate}"></span><br>
-                            Exp: <span class="fw-bold text-uppercase" style="font-size: 9pt;" th:text="${batch.expiryDate}"></span>
+                            Pkd: <span class="fw-bold" style="font-size: 10pt;" th:text="${batch.batchDate}"></span><br>
+                            Exp: <span class="fw-bold text-uppercase" style="font-size: 10pt;" th:text="${batch.expiryDate}"></span>
                         </div>
                         <div class="col-6 border-start ps-1">
                             Net Wt: <span class="fw-bold" th:text="${batch.product.netWeight != null ? batch.product.netWeight + (batch.product.netWeightUom != null ? batch.product.netWeightUom : '') : ''}">200g</span><br>
                             <span th:if="${batch.product.mrp != null}" th:text="'MRP: ₹' + ${batch.product.mrp} + ' (Incl. taxes)'">MRP</span><br>
-                            <span class="fst-italic fw-bold border border-dark px-1 bg-light d-inline-block mt-1" style="font-size: 8pt;" th:text="${batch.product.storageInstructions}">Storage</span>
+                            <span class="fst-italic fw-bold border border-dark px-1 bg-light d-inline-block" style="font-size: 9pt;" th:text="${batch.product.storageInstructions}">Storage</span>
                         </div>
                     </div>
 
