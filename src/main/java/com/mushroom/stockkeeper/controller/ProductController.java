@@ -69,7 +69,25 @@ public class ProductController {
     }
 
     @PostMapping("/save")
-    public String save(@ModelAttribute Product product) {
+    public String save(@jakarta.validation.Valid @ModelAttribute Product product, org.springframework.validation.BindingResult result, Model model) {
+        if (product.isHasNutritionValues()) {
+            if (product.getNutritionBaseUnitValue() == null || product.getNutritionBaseUnitValue().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+                result.rejectValue("nutritionBaseUnitValue", "error.nutritionBaseUnitValue", "Base Unit Value must be a positive number");
+            }
+            if (product.getNutritionBaseUnitType() == null || product.getNutritionBaseUnitType().trim().isEmpty()) {
+                result.rejectValue("nutritionBaseUnitType", "error.nutritionBaseUnitType", "Base Unit Type is required");
+            }
+        }
+        if (result.hasErrors()) {
+            model.addAttribute("uoms", uomRepository.findAll());
+            return "products/form";
+        }
+        
+        // Ensure bidirectional relationship is maintained for cascading
+        if (product.getNutritionLineItems() != null) {
+            product.getNutritionLineItems().forEach(item -> item.setProduct(product));
+        }
+
         productRepository.save(product);
         return "redirect:/products";
     }
@@ -80,6 +98,13 @@ public class ProductController {
                 .orElseThrow(() -> new IllegalArgumentException("Invalid product Id:" + id)));
         model.addAttribute("uoms", uomRepository.findAll());
         return "products/form";
+    }
+
+    @GetMapping("/view/{id}")
+    public String viewProduct(@PathVariable Long id, Model model) {
+        model.addAttribute("product", productRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid product Id:" + id)));
+        return "products/view";
     }
 
     @GetMapping("/delete/{id}")

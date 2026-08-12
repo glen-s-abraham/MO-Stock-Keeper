@@ -46,4 +46,16 @@ public class Product {
     private java.math.BigDecimal mrp;
 
     private boolean deleted = false;
+
+    // Nutrition values configuration
+    private boolean hasNutritionValues = false;
+
+    @Column(precision = 10, scale = 2)
+    private java.math.BigDecimal nutritionBaseUnitValue;
+
+    private String nutritionBaseUnitType; // e.g., 'g', 'ml'
+
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("displayOrder ASC")
+    private java.util.List<NutritionLineItem> nutritionLineItems = new java.util.ArrayList<>();
 }

@@ -55,6 +55,9 @@
                                 <td th:text="${p.uom.code}">BOX</td>
                                 <td th:text="${p.defaultExpiryDays}">7</td>
                                 <td class="text-end pe-4">
+                                    <a th:href="@{/products/view/{id}(id=${p.id})}"
+                                        class="btn btn-sm btn-outline-info border-0 me-1"><i
+                                            class="bi bi-eye"></i></a>
                                     <a th:href="@{/products/edit/{id}(id=${p.id})}"
                                         class="btn btn-sm btn-outline-primary border-0 me-1"><i
                                             class="bi bi-pencil"></i></a>

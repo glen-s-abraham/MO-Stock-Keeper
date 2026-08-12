@@ -1,0 +1,43 @@
+@media print {
+    body {
+        background-color: white;
+        color: black;
+    }
+
+    .d-print-none {
+        display: none !important;
+    }
+
+    .nutrition-label-container {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0;
+        margin: 0;
+    }
+
+    .nutrition-label {
+        border: 2px solid black;
+        padding: 10px;
+        width: 300px;
+        font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .nutrition-label h5 {
+        font-size: 24pt;
+        margin: 0 0 5px 0;
+    }
+
+    .nutrition-label table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .nutrition-label th, .nutrition-label td {
+        border-bottom: 1px solid black;
+        padding: 3px 0;
+    }
+
+    .nutrition-label tr.border-dark {
+        border-bottom: 1px solid black !important;
+    }
+}

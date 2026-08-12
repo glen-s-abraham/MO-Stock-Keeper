@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+    layout:decorate="~{layout/base}">
+
+<head>
+    <title>View Product</title>
+    <link rel="stylesheet" th:href="@{/css/print.css}">
+</head>
+
+<body>
+    <div layout:fragment="content">
+        <div class="row justify-content-center">
+            <div class="col-12 col-md-8 col-lg-6">
+                <div class="d-flex align-items-center mb-4 d-print-none">
+                    <a th:href="@{/products}" class="btn btn-outline-secondary btn-sm me-3"><i
+                            class="bi bi-arrow-left fs-5"></i></a>
+                    <h3 class="mb-0">Product Details</h3>
+                    <button class="btn btn-outline-primary btn-sm ms-auto" onclick="window.print()"><i class="bi bi-printer"></i> Print Label</button>
+                </div>
+
+                <div class="card shadow-sm nutrition-label-container">
+                    <div class="card-body p-4">
+                        <h4 class="mb-3" th:text="${product.name}">Product Name</h4>
+                        <p class="text-muted mb-4">SKU: <span th:text="${product.sku}"></span> | UOM: <span th:text="${product.uom.code}"></span></p>
+
+                        <div th:if="${product.hasNutritionValues}" class="nutrition-label">
+                            <h5 class="fw-bold border-bottom border-dark border-2 pb-1 mb-2">Nutrition Facts</h5>
+                            <p class="fw-bold mb-3">Serving Size: <span th:text="${product.nutritionBaseUnitValue}"></span> <span th:text="${product.nutritionBaseUnitType}"></span></p>
+                            
+                            <table class="table table-sm border-dark">
+                                <tbody>
+                                    <tr th:each="item : ${product.nutritionLineItems}" class="border-dark">
+                                        <td class="fw-bold border-dark" th:text="${item.componentName}">Component</td>
+                                        <td class="text-end border-dark"><span th:text="${item.amount}"></span> <span th:text="${item.measurementUnit}"></span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div th:unless="${product.hasNutritionValues}">
+                            <p class="text-muted fst-italic">No nutrition information available for this product.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
