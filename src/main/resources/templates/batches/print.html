@@ -164,7 +164,7 @@
 
         <div class="label-grid">
             <div th:each="u : ${units}" class="label-item">
-                <div class="d-flex flex-column w-100" style="text-align: left; font-size: 11pt; line-height: 1;">
+                <div class="d-flex flex-column" style="text-align: left; font-size: 14pt; line-height: 1.05;">
                     <!-- Top section: Veg symbol, Product Name, FSSAI -->
                     <div class="d-flex justify-content-between align-items-start w-100 mb-0">
                         <div class="border border-success d-flex justify-content-center align-items-center" style="width: 10mm; height: 10mm; min-width: 10mm; border-width: 2px !important; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
@@ -252,36 +252,68 @@
                 if (content) {
                     // Reset transform to get natural size
                     content.style.transform = 'none';
-                    content.style.width = '100%'; // Ensure full width for calc
+                    content.style.marginLeft = '0';
+                    content.style.marginTop = '0';
 
                     // Get computed styles to check padding
                     const style = window.getComputedStyle(label);
                     const paddingVertical = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
                     const paddingHorizontal = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
 
-                    // Available space is client size MINUS padding (since clientHeight includes padding)
-                    // ...actually clientHeight includes padding. 
-                    // But content sits inside padding.
-                    // So we want the content box size.
-                    const availableHeight = label.clientHeight - paddingVertical;
-                    const availableWidth = label.clientWidth - paddingHorizontal;
+                    const availHeight = label.clientHeight - paddingVertical;
+                    const availWidth = label.clientWidth - paddingHorizontal;
+                    
+                    if (availHeight <= 0 || availWidth <= 0) return;
 
-                    // Use scrollHeight/Width to get full content size
-                    const contentHeight = content.scrollHeight;
-                    const contentWidth = content.scrollWidth;
+                    const targetRatio = availWidth / availHeight;
+                    
+                    // Binary search for the optimal virtual width
+                    let minW = 10;
+                    let maxW = 4000;
+                    let bestW = availWidth;
+                    
+                    for (let i = 0; i < 20; i++) {
+                        let midW = (minW + maxW) / 2;
+                        content.style.width = midW + 'px';
+                        
+                        let currentW = content.scrollWidth;
+                        let currentH = content.scrollHeight;
+                        let ratio = currentW / currentH;
+                        
+                        if (ratio > targetRatio) {
+                            // Aspect ratio is too wide (short and fat). We need it to be taller, so decrease width to force more wrapping.
+                            maxW = midW;
+                        } else {
+                            // Aspect ratio is too narrow (tall and thin). We need it to be shorter, so increase width to force less wrapping.
+                            minW = midW;
+                        }
+                        bestW = midW;
+                    }
+                    
+                    // Apply optimal width
+                    content.style.width = bestW + 'px';
+                    
+                    const finalW = content.scrollWidth;
+                    const finalH = content.scrollHeight;
 
                     // Calculate scale factors
-                    if (contentHeight > availableHeight || contentWidth > availableWidth) {
-                        const scaleH = availableHeight / contentHeight;
-                        const scaleW = availableWidth / contentWidth;
+                    const scaleW = availWidth / finalW;
+                    const scaleH = availHeight / finalH;
 
-                        // Use the smaller scale to fit both dimensions, with a 5% buffer
-                        const scale = Math.min(scaleH, scaleW) * 0.95;
+                    // Use the smaller scale to fit both dimensions, with a small 1% buffer
+                    const scale = Math.min(scaleW, scaleH) * 0.99;
 
-                        // Set origin to center so it shrinks into the middle
-                        content.style.transformOrigin = 'center center';
-                        content.style.transform = `scale(${scale})`;
-                    }
+                    content.style.transformOrigin = 'top left';
+                    content.style.transform = `scale(${scale})`;
+                    
+                    // Center the scaled content precisely
+                    const scaledW = finalW * scale;
+                    const scaledH = finalH * scale;
+                    const leftMargin = (availWidth - scaledW) / 2;
+                    const topMargin = (availHeight - scaledH) / 2;
+                    
+                    content.style.marginLeft = leftMargin + 'px';
+                    content.style.marginTop = topMargin + 'px';
                 }
             });
         }
