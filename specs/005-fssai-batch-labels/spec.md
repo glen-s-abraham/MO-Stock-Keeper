@@ -71,13 +71,15 @@ As a developer or system administrator, I want to deploy seed data containing sa
 
 - **FR-001**: System MUST support generating print-ready batch labels for inventory units.
 - **FR-002**: System MUST dynamically include a nutrition information table on the label IF and ONLY IF the configured paper dimensions are >= 75mm (both height and width) AND the product has nutrition values enabled. The table MUST support 5-6 additional items and auto-scale/self-adjust to fit the available space.
-- **FR-003**: System MUST reserve a precise 10mm x 10mm placeholder space on the label layout for manual application of a standard vegetarian symbol.
-- **FR-004**: System MUST accurately retrieve and render the configured Farm Name, Registered Office Address, Customer Care Address, and Customer Care Contact on the label, with the contact number visually emphasized.
+- **FR-003**: System MUST reserve a precise 10mm x 10mm placeholder space on the label layout for manual application of a standard vegetarian symbol, bordered with a 1.5mm side and 4mm bottom margin to provide safe clearance for physical pasting.
+- **FR-004**: System MUST accurately retrieve and render the configured Farm Name, Registered Office Address, Customer Care Address, and Customer Care Contact on the label, with the contact number visually emphasized. Legacy hardcoded dummy initialization data MUST be purged to prevent settings override.
 - **FR-005**: System MUST include FSSAI License Number prominently on the label layout.
 - **FR-006**: System MUST clearly display and emphasize packaging date, expiry date ("Used By"), and specific storage instructions (e.g., "STORED AT 4°C - 8°C") with proper modern alignment.
 - **FR-007**: System MUST provide database seed migrations/scripts to pre-populate necessary FSSAI, farm, and storage configuration data for testing (including 5-6 sample nutrition items).
 - **FR-008**: System MUST generate the label as an HTML/CSS view optimized for direct printing via the browser print dialog.
-- **FR-009**: System MUST omit/remove the QR code from the batch label for the time being.
+- **FR-009**: System MUST omit/remove the QR code and UUID from the batch label to maximize printable real-estate for text.
+- **FR-010**: System MUST implement independent `netWeight` and `netWeightUom` fields on the Product entity for label display, decoupling weight from the nutrition base unit.
+- **FR-011**: System MUST employ a dynamic binary-search auto-scaling algorithm to calculate optimal text wrap dimensions, allowing label content to perfectly maximize available typography size and fit gracefully into small formats (e.g., 50x50mm), alongside a 1mm hardware safe margin to prevent physical thermal printer clipping.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -91,7 +93,8 @@ As a developer or system administrator, I want to deploy seed data containing sa
 - **SC-001**: Label generation for a batch of 100 inventory units completes in under 2 seconds.
 - **SC-002**: Generated 75x75mm label layout perfectly accommodates the nutrition table without overflowing standard page margins in print preview.
 - **SC-003**: 100% of FSSAI mandatory fields (License, Dates, Weight, Origin) are present on the generated template.
-- **SC-004**: Seed data script executes without errors during application startup or manual execution.
+- **SC-004**: Seed data script executes without errors during application startup or manual execution, and gracefully avoids overwriting valid user configurations.
+- **SC-005**: 50x50mm thermal labels dynamically auto-scale to fully maximize their typography size within bounding boxes without cropping any borders or text edges.
 
 ## Assumptions
 

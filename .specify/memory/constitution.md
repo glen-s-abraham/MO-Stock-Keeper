@@ -1,15 +1,9 @@
 <!--
 Sync Impact Report:
-- Version change: Initial template -> 1.0.0
-- Modified principles:
-  - [PRINCIPLE_1_NAME] -> I. Financial Integrity & Explicit Auditability (NON-NEGOTIABLE)
-  - [PRINCIPLE_2_NAME] -> II. Complete Inventory Traceability & QR Lifecycle
-  - [PRINCIPLE_3_NAME] -> III. Strict Security & Data Ownership
-  - [PRINCIPLE_4_NAME] -> IV. Defensive Concurrency & Data Consistency
-  - [PRINCIPLE_5_NAME] -> V. Database-Driven Aggregation & Performance
+- Version change: 1.0.0 -> 1.1.0
+- Modified principles: None
 - Added sections:
-  - Architecture & Technology Stack
-  - Development & Quality Workflow
+  - Added Principle VI: Physical Printing & Hardware Constraints
 - Removed sections: None
 - Follow-up TODOs: None
 -->
@@ -48,6 +42,12 @@ Data processing and financial aggregations MUST be executed natively within the 
 - Financial reporting, inventory balances, and summary metrics MUST rely on SQL `GROUP BY` aggregations rather than in-memory entity iteration.
 - Web endpoints displaying list views or transactional tables MUST implement server-side pagination and sorting.
 
+### VI. Physical Printing & Hardware Constraints
+When rendering physical artifacts (e.g., thermal batch labels), the system MUST mathematically accommodate hardware tolerances and dynamic media sizes.
+- Layouts MUST enforce non-zero structural safe margins (minimum 1mm padding) around printable boundaries to prevent unpredictable hardware edge-cropping by thermal print heads.
+- Dynamic layout scaling MUST employ intelligent bounding-box optimization (e.g., aspect-ratio matching via binary search) to absolutely maximize typography legibility without violating hardware safe zones.
+- CSS layout constraints and scaling logic MUST defensively avoid fractional sub-pixel border rendering, which routinely results in vanished strokes or anti-aliasing artifacts on monochrome hardware.
+
 ## Architecture & Technology Stack
 
 The MO-Stock-Keeper system relies on a standardized, modern Java backend stack:
@@ -74,6 +74,6 @@ This Constitution represents the supreme technical governance policy for the MO-
   - **MAJOR**: Backward-incompatible principle redefinitions or structural governance changes.
   - **MINOR**: Addition of new core principles, workflow sections, or material guidance expansion.
   - **PATCH**: Non-semantic clarifications, formatting, or typographical corrections.
-- **Compliance Audits**: Every pull request code review MUST evaluate compliance against Core Principles I through V.
+- **Compliance Audits**: Every pull request code review MUST evaluate compliance against Core Principles I through VI.
 
-**Version**: 1.0.0 | **Ratified**: 2026-07-31 | **Last Amended**: 2026-07-31
+**Version**: 1.1.0 | **Ratified**: 2026-07-31 | **Last Amended**: 2026-08-12
