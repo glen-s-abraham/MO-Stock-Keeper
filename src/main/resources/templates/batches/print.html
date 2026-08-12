@@ -203,8 +203,8 @@
                         </div>
                         <div class="col-6 border-start ps-1">
                             Net Wt: <span class="fw-bold" th:text="${batch.product.netWeight != null ? batch.product.netWeight + (batch.product.netWeightUom != null ? batch.product.netWeightUom : '') : ''}">200g</span><br>
-                            <span th:if="${batch.product.mrp != null}" th:text="'MRP: ₹' + ${batch.product.mrp} + ' (Incl. taxes)'">MRP</span><br>
-                            <span class="fst-italic fw-bold border border-dark px-1 bg-light d-inline-block" style="font-size: 9pt;" th:text="${batch.product.storageInstructions}">Storage</span>
+                            <span th:if="${batch.product.mrp != null}" th:text="'MRP: ₹' + ${batch.product.mrp} + ' (Incl. taxes)'">MRP</span>
+                            <div th:if="${batch.product.storageInstructions != null and !batch.product.storageInstructions.isEmpty()}" class="border border-dark p-1 mt-1 text-center" style="font-size: 8pt; border-style: dashed !important;" th:text="${batch.product.storageInstructions}">Storage</div>
                         </div>
                     </div>
 
