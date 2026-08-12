@@ -208,7 +208,7 @@
                     </div>
                     
                     <!-- Storage Instructions -->
-                    <div th:if="${batch.product.storageInstructions != null and !batch.product.storageInstructions.isEmpty()}" class="border border-dark p-1 mt-1 text-center" style="font-size: 8pt; border-style: dashed !important; border-radius: 2px;" th:text="${batch.product.storageInstructions}">Storage</div>
+                    <div th:if="${batch.product.storageInstructions != null and !batch.product.storageInstructions.isEmpty()}" class="border border-dark p-1 mt-1 text-center mx-auto" style="width: 96%; font-size: 8pt; border-style: dashed !important; border-radius: 2px;" th:text="${batch.product.storageInstructions}">Storage</div>
 
 
                     <!-- Nutrition Table (Conditional) -->
@@ -302,8 +302,8 @@
                     const scaleW = availWidth / finalW;
                     const scaleH = availHeight / finalH;
 
-                    // Use the smaller scale to fit both dimensions, with a small 1% buffer
-                    const scale = Math.min(scaleW, scaleH) * 0.99;
+                    // Use the smaller scale to fit both dimensions, with a solid 5% buffer
+                    const scale = Math.min(scaleW, scaleH) * 0.95;
 
                     content.style.transformOrigin = 'top left';
                     content.style.transform = `scale(${scale})`;
