@@ -208,10 +208,6 @@
                         </div>
                     </div>
 
-                    <!-- UUID -->
-                    <div class="text-center fw-bold" style="font-size: 7pt;">
-                        <span th:text="'ID: ' + ${u.uuid}">UUID</span>
-                    </div>
 
                     <!-- Nutrition Table (Conditional) -->
                     <th:block th:with="showNutrition=${batch.product.hasNutritionValues and ((labelSheetSize == 'THERMAL_CUSTOM' and customLabelWidth >= 75 and customLabelHeight >= 75) or labelSheetSize == 'THERMAL_4x6')}">
