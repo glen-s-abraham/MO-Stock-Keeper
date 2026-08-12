@@ -14,6 +14,9 @@
 
 - Q: What is the primary entity or container this batch label will be applied to? → A: Individual retail units (e.g., 200g packs).
 - Q: What is the desired output format for the generated batch labels when triggering a print? → A: HTML/CSS rendered directly in the browser print dialog.
+- Q: Should the QR code be included in the FSSAI label? → A: Remove the QR code for the time being.
+- Q: Which specific label details should be emphasized? → A: Package date, expiry date, storage instructions, and the contact number must be emphasized.
+- Q: How many items should the nutrition table contain and how should it behave? → A: It needs 5-6 items additionally and should be self-adjusting to fit the available space.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -67,13 +70,14 @@ As a developer or system administrator, I want to deploy seed data containing sa
 ### Functional Requirements
 
 - **FR-001**: System MUST support generating print-ready batch labels for inventory units.
-- **FR-002**: System MUST dynamically include a nutrition information table on the label IF and ONLY IF the configured paper dimensions are >= 75mm (both height and width) AND the product has nutrition values enabled.
+- **FR-002**: System MUST dynamically include a nutrition information table on the label IF and ONLY IF the configured paper dimensions are >= 75mm (both height and width) AND the product has nutrition values enabled. The table MUST support 5-6 additional items and auto-scale/self-adjust to fit the available space.
 - **FR-003**: System MUST reserve a precise 10mm x 10mm placeholder space on the label layout for manual application of a standard vegetarian symbol.
-- **FR-004**: System MUST accurately retrieve and render the configured Farm Name, Registered Office Address, Customer Care Address, and Customer Care Contact on the label.
+- **FR-004**: System MUST accurately retrieve and render the configured Farm Name, Registered Office Address, Customer Care Address, and Customer Care Contact on the label, with the contact number visually emphasized.
 - **FR-005**: System MUST include FSSAI License Number prominently on the label layout.
-- **FR-006**: System MUST clearly display packaging date, expiry date ("Used By"), and specific storage instructions (e.g., "STORED AT 4°C - 8°C") with proper modern alignment.
-- **FR-007**: System MUST provide database seed migrations/scripts to pre-populate necessary FSSAI, farm, and storage configuration data for testing.
+- **FR-006**: System MUST clearly display and emphasize packaging date, expiry date ("Used By"), and specific storage instructions (e.g., "STORED AT 4°C - 8°C") with proper modern alignment.
+- **FR-007**: System MUST provide database seed migrations/scripts to pre-populate necessary FSSAI, farm, and storage configuration data for testing (including 5-6 sample nutrition items).
 - **FR-008**: System MUST generate the label as an HTML/CSS view optimized for direct printing via the browser print dialog.
+- **FR-009**: System MUST omit/remove the QR code from the batch label for the time being.
 
 ### Key Entities *(include if feature involves data)*
 

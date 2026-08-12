@@ -164,50 +164,73 @@
 
         <div class="label-grid">
             <div th:each="u : ${units}" class="label-item">
-                <div class="d-flex align-items-center justify-content-center flex-column h-100 w-100 text-center">
-                    <!-- Configurable Company Name -->
-                    <div th:if="${companyName != null && !companyName.isEmpty()}" class="fw-bold text-uppercase w-100"
-                        style="font-size: 12pt; border-bottom: 2px solid #000; margin-bottom: 0; line-height: 1;"
-                        th:text="${companyName}">Mushroom Operations</div>
-
-                    <div th:if="${companyName == null || companyName.isEmpty()}" class="text-danger no-print"
-                        style="font-size: 8pt;">
-                        <span sec:authorize="hasRole('ADMIN')"><a href="/admin/settings" target="_blank">Set
-                                Name</a></span>
-                        <span sec:authorize="!hasRole('ADMIN')">Config Name</span>
+                <div class="d-flex flex-column h-100 w-100" style="text-align: left; font-size: 8pt; line-height: 1.1;">
+                    <!-- Top section: Veg symbol, Product Name, FSSAI -->
+                    <div class="d-flex justify-content-between align-items-start w-100 mb-1">
+                        <div class="border border-success d-flex justify-content-center align-items-center" style="width: 10mm; height: 10mm; min-width: 10mm; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+                            <div class="bg-success rounded-circle" style="width: 5mm; height: 5mm; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></div>
+                        </div>
+                        <div class="text-center flex-grow-1 px-2">
+                            <div class="fw-bold" style="font-size: 11pt;" th:text="${batch.product.name}">PROD</div>
+                            <div th:if="${batch.product.fssaiLicenseNumber != null}" class="fw-bold" th:text="'FSSAI Lic No: ' + ${batch.product.fssaiLicenseNumber}">FSSAI</div>
+                        </div>
+                        <!-- QR Code removed per FR-009 -->
+                        <div style="display: none;">
+                            <img th:src="'data:image/png;base64,' + ${qrCodes.get(u.id)}" class="qr-img" style="max-height: 25mm; width: auto; margin: 0;" />
+                        </div>
                     </div>
 
-                    <img th:src="'data:image/png;base64,' + ${qrCodes.get(u.id)}" class="qr-img"
-                        style="max-height: 40%; width: auto; margin: 0;" />
-
-                    <div class="fw-bold w-100"
-                        style="font-size: 18pt; font-family: monospace; line-height: 0.85; white-space: nowrap; overflow: hidden; text-overflow: clip;"
-                        th:text="${u.uuid}">UUID</div>
-
-                    <div class="text-uppercase fw-bold w-100" style="font-size: 12pt; line-height: 0.9;"
-                        th:text="${batch.product.name}">PROD</div>
-
-                    <div class="w-100" style="font-size: 12pt; line-height: 0.9; margin-top: 1px;">
-                        Pkd: <span th:text="${batch.batchDate}">DATE</span> | Exp: <span
-                            th:text="${batch.expiryDate}">DATE</span>
+                    <!-- Company Info -->
+                    <div class="row g-0 mb-1" style="font-size: 7pt;">
+                        <div class="col-6 pe-1">
+                            <strong>GROWN & PACKED BY:</strong><br>
+                            <span th:text="${companyName}">Mushroom Operations</span><br>
+                            <span th:text="${registeredOfficeAddress}">Address</span>
+                        </div>
+                        <div class="col-6 ps-1 border-start">
+                            <strong>CUSTOMER CARE:</strong><br>
+                            <span th:text="${customerCareAddress}">Address</span><br>
+                            <span class="fw-bold" style="font-size: 9pt;" th:text="'Tel: ' + ${contactNumber}">Contact</span>
+                        </div>
                     </div>
 
-                    <div class="w-100" style="font-size: 10pt; font-style: italic; line-height: 0.9;"
-                        th:if="${batch.product.storageInstructions != null}"
-                        th:text="${batch.product.storageInstructions}">Storage</div>
+                    <!-- Batch & Product Details -->
+                    <div class="row g-0 mb-1 border-top border-bottom py-1">
+                        <div class="col-6">
+                            Batch No: <span class="fw-bold" th:text="${batch.batchCode}"></span><br>
+                            Pkd: <span class="fw-bold" style="font-size: 9pt;" th:text="${batch.batchDate}"></span><br>
+                            Exp: <span class="fw-bold text-uppercase" style="font-size: 9pt;" th:text="${batch.expiryDate}"></span>
+                        </div>
+                        <div class="col-6 border-start ps-1">
+                            Net Wt: <span class="fw-bold" th:text="${batch.product.nutritionBaseUnitValue + batch.product.nutritionBaseUnitType}">200g</span><br>
+                            <span th:if="${batch.product.mrp != null}" th:text="'MRP: ₹' + ${batch.product.mrp} + ' (Incl. taxes)'">MRP</span><br>
+                            <span class="fst-italic fw-bold border border-dark px-1 bg-light d-inline-block mt-1" style="font-size: 8pt;" th:text="${batch.product.storageInstructions}">Storage</span>
+                        </div>
+                    </div>
 
-                    <div th:if="${batch.product.fssaiLicenseNumber != null && !batch.product.fssaiLicenseNumber.isEmpty()}"
-                        class="w-100" style="font-size: 10pt; margin-top: 0; font-weight: bold; line-height: 0.9;"
-                        th:text="'FSSAI Lic No: ' + ${batch.product.fssaiLicenseNumber}">FSSAI</div>
+                    <!-- UUID -->
+                    <div class="text-center fw-bold" style="font-size: 7pt;">
+                        <span th:text="'ID: ' + ${u.uuid}">UUID</span>
+                    </div>
 
-                    <div th:if="${batch.product.mrp != null}" class="w-100"
-                        style="font-size: 12pt; margin-top: 0; font-weight: bold; line-height: 0.9;"
-                        th:text="'MRP: ₹' + ${batch.product.mrp}">MRP: ₹100.00</div>
-
-                    <!-- Configurable Contact -->
-                    <div th:if="${contactNumber != null && !contactNumber.isEmpty()}" class="w-100"
-                        style="font-size: 10pt; margin-top: 0; font-weight: bold; line-height: 0.9;"
-                        th:text="'Contact: ' + ${contactNumber}">Contact</div>
+                    <!-- Nutrition Table (Conditional) -->
+                    <th:block th:with="showNutrition=${batch.product.hasNutritionValues and ((labelSheetSize == 'THERMAL_CUSTOM' and customLabelWidth >= 75 and customLabelHeight >= 75) or labelSheetSize == 'THERMAL_4x6')}">
+                        <div th:if="${showNutrition}" class="mt-1 w-100">
+                            <table class="table table-sm table-bordered nutrition-table mb-0 w-100" style="font-size: 6pt; border-color: #000;">
+                                <thead>
+                                    <tr>
+                                        <th colspan="2" class="text-center p-1 bg-light m-0 border-bottom-0">NUTRITIONAL INFORMATION (Approx. per <span th:text="${batch.product.nutritionBaseUnitValue + batch.product.nutritionBaseUnitType}">100g</span>)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="item : ${batch.product.nutritionLineItems}">
+                                        <td class="p-1 m-0" style="width: 60%; border-top: none;" th:text="${item.componentName}">Component</td>
+                                        <td class="p-1 m-0 text-end" style="width: 40%; border-top: none;" th:text="${item.amount + item.measurementUnit}">0g</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </th:block>
                 </div>
             </div>
         </div>

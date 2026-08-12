@@ -13,6 +13,8 @@ public class SettingsService {
 
     public static final String KEY_COMPANY_NAME = "company_name";
     public static final String KEY_CONTACT_NUMBER = "company_phone";
+    public static final String KEY_REGISTERED_OFFICE = "company_registered_office";
+    public static final String KEY_CUSTOMER_CARE = "company_customer_care";
     public static final String KEY_LABEL_SHEET_SIZE = "label_sheet_size";
     public static final String KEY_TARGET_PRINTER = "target_printer";
     public static final String KEY_CUSTOM_LABEL_WIDTH = "custom_label_width";
@@ -30,6 +32,18 @@ public class SettingsService {
 
     public String getContactNumber() {
         return appSettingRepository.findBySettingKey(KEY_CONTACT_NUMBER)
+                .map(AppSetting::getSettingValue)
+                .orElse(null);
+    }
+
+    public String getRegisteredOfficeAddress() {
+        return appSettingRepository.findBySettingKey(KEY_REGISTERED_OFFICE)
+                .map(AppSetting::getSettingValue)
+                .orElse(null);
+    }
+
+    public String getCustomerCareAddress() {
+        return appSettingRepository.findBySettingKey(KEY_CUSTOMER_CARE)
                 .map(AppSetting::getSettingValue)
                 .orElse(null);
     }

@@ -40,4 +40,9 @@
     .nutrition-label tr.border-dark {
         border-bottom: 1px solid black !important;
     }
+
+    .nutrition-table th, .nutrition-table td {
+        border-color: black !important;
+        padding: 2px !important;
+    }
 }

@@ -202,6 +202,8 @@ public class HarvestBatchController {
         model.addAttribute("qrCodes", qrCodes);
         model.addAttribute("companyName", settingsService.getCompanyName());
         model.addAttribute("contactNumber", settingsService.getContactNumber());
+        model.addAttribute("registeredOfficeAddress", settingsService.getRegisteredOfficeAddress());
+        model.addAttribute("customerCareAddress", settingsService.getCustomerCareAddress());
         model.addAttribute("labelSheetSize", settingsService.getLabelSheetSize());
         model.addAttribute("customLabelWidth", settingsService.getCustomLabelWidth());
         model.addAttribute("customLabelHeight", settingsService.getCustomLabelHeight());
