@@ -48,6 +48,7 @@ public class Product {
     private boolean deleted = false;
 
     // Nutrition values configuration
+    @Column(nullable = false, columnDefinition = "boolean default false")
     private boolean hasNutritionValues = false;
 
     @Column(precision = 10, scale = 2)
