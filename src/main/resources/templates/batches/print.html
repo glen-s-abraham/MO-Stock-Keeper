@@ -211,7 +211,7 @@
                     <!-- Nutrition Table (Conditional) -->
                     <th:block th:with="showNutrition=${batch.product.hasNutritionValues and ((labelSheetSize == 'THERMAL_CUSTOM' and customLabelWidth >= 75 and customLabelHeight >= 75) or labelSheetSize == 'THERMAL_4x6')}">
                         <div th:if="${showNutrition}" class="mt-1 w-100">
-                            <table class="table table-sm table-bordered nutrition-table mb-0 w-100" style="font-size: 6pt; border-color: #000;">
+                            <table class="table table-sm table-bordered nutrition-table mb-0 w-100" style="font-size: 11pt; border-color: #000;">
                                 <thead>
                                     <tr>
                                         <th colspan="2" class="text-center p-1 bg-light m-0 border-bottom-0">NUTRITIONAL INFORMATION (Approx. per <span th:text="${batch.product.nutritionBaseUnitValue + batch.product.nutritionBaseUnitType}">100g</span>)</th>
@@ -228,7 +228,7 @@
                     </th:block>
                     
                     <!-- Storage Instructions -->
-                    <div th:if="${batch.product.storageInstructions != null and !batch.product.storageInstructions.isEmpty()}" class="border border-dark p-2 mt-1 text-center mx-auto" style="width: 94%; max-width: 94%; font-size: 7.5pt; border-style: dashed !important; border-width: 2px !important; border-radius: 2px; overflow-wrap: break-word; word-wrap: break-word; box-sizing: border-box;" th:text="${batch.product.storageInstructions}">Storage</div>
+                    <div th:if="${batch.product.storageInstructions != null and !batch.product.storageInstructions.isEmpty()}" class="border border-dark p-2 mt-1 text-center w-100" style="font-size: 11pt; border-style: dashed !important; border-width: 2px !important; border-radius: 2px; overflow-wrap: break-word; word-wrap: break-word; box-sizing: border-box;" th:text="${batch.product.storageInstructions}">Storage</div>
                 </div>
             </div>
         </div>
