@@ -266,7 +266,8 @@ public class PrintServerService {
 
     /**
      * Generates a multi-page PDF document that is 100% head-to-head identical to the browser's window.print() output
-     * by rendering the exact Thymeleaf print.html template + Bootstrap CSS + autoFitLabels() JS in headless Chrome,
+     * by rendering the exact Thymeleaf print.html template + Bootstrap CSS + autoFitLabels() JS in Chrome
+     * (either on the Windows print server workstation via /render-pdf or locally via headless Chrome),
      * with an automatic fallback to native PDFBox rendering if headless Chrome is unavailable.
      */
     public byte[] generateBatchLabelsPdf(
@@ -280,6 +281,13 @@ public class PrintServerService {
             String registeredOfficeAddress,
             String customerCareAddress) throws IOException {
 
+        byte[] remoteChromePdf = tryGeneratePdfViaPrintServerChrome(
+                batch, units, labelSheetSize, customWidthMm, customHeightMm,
+                companyName, contactNumber, registeredOfficeAddress, customerCareAddress);
+        if (remoteChromePdf != null && remoteChromePdf.length > 100) {
+            return remoteChromePdf;
+        }
+
         byte[] chromePdf = tryGeneratePdfViaHeadlessChrome(
                 batch, units, labelSheetSize, customWidthMm, customHeightMm,
                 companyName, contactNumber, registeredOfficeAddress, customerCareAddress);
@@ -290,6 +298,62 @@ public class PrintServerService {
         return generateBatchLabelsPdfFallback(
                 batch, units, labelSheetSize, customWidthMm, customHeightMm,
                 companyName, contactNumber, registeredOfficeAddress, customerCareAddress);
+    }
+
+    private byte[] tryGeneratePdfViaPrintServerChrome(
+            HarvestBatch batch,
+            List<InventoryUnit> units,
+            String labelSheetSize,
+            int customWidthMm,
+            int customHeightMm,
+            String companyName,
+            String contactNumber,
+            String registeredOfficeAddress,
+            String customerCareAddress) {
+        try {
+            String rawServerUrl = settingsService.getPrintServerUrl();
+            if (rawServerUrl == null || rawServerUrl.trim().isEmpty()) {
+                return null;
+            }
+            String cleanBase = rawServerUrl.trim();
+            if (cleanBase.endsWith("/")) {
+                cleanBase = cleanBase.substring(0, cleanBase.length() - 1);
+            }
+            if (cleanBase.endsWith("/print")) {
+                cleanBase = cleanBase.substring(0, cleanBase.length() - "/print".length());
+            }
+
+            String sheet = labelSheetSize != null ? labelSheetSize : "A4_40";
+            int[] dimsMm = resolveLabelDimensionsMm(sheet, customWidthMm, customHeightMm);
+
+            String htmlContent = buildStandalonePrintHtml(
+                    batch, units, sheet, dimsMm[0], dimsMm[1],
+                    companyName, contactNumber, registeredOfficeAddress, customerCareAddress,
+                    null);
+
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofMillis(connectTimeoutMs))
+                    .build();
+
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(cleanBase + "/render-pdf"))
+                    .timeout(Duration.ofMillis(readTimeoutMs))
+                    .header("Content-Type", "text/html; charset=utf-8")
+                    .header("X-Label-Width-Mm", String.valueOf(dimsMm[0]))
+                    .header("X-Label-Height-Mm", String.valueOf(dimsMm[1]))
+                    .POST(HttpRequest.BodyPublishers.ofString(htmlContent, StandardCharsets.UTF_8))
+                    .build();
+
+            HttpResponse<byte[]> resp = client.send(req, HttpResponse.BodyHandlers.ofByteArray());
+            if (resp.statusCode() == 200 && resp.body() != null && resp.body().length > 100
+                    && resp.body()[0] == 0x25 && resp.body()[1] == 0x50 && resp.body()[2] == 0x44 && resp.body()[3] == 0x46) {
+                log.debug("Rendered 1:1 PDF via print workstation Chrome /render-pdf ({} bytes)", resp.body().length);
+                return resp.body();
+            }
+        } catch (Exception e) {
+            log.debug("Print server /render-pdf not used ({}), trying local headless Chrome", e.getMessage());
+        }
+        return null;
     }
 
     private byte[] tryGeneratePdfViaHeadlessChrome(
@@ -375,20 +439,24 @@ public class PrintServerService {
     }
 
     private String findChromeBinary() {
-        String[] candidates = {"/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser", "google-chrome"};
+        String[] candidates = {
+                "/usr/bin/google-chrome",
+                "/usr/bin/google-chrome-stable",
+                "/usr/bin/chromium",
+                "/usr/bin/chromium-browser",
+                "/snap/bin/chromium"
+        };
         for (String candidate : candidates) {
-            if (candidate.startsWith("/")) {
-                if (Files.isExecutable(Path.of(candidate))) {
-                    return candidate;
-                }
+            if (Files.isExecutable(Path.of(candidate))) {
+                return candidate;
             }
         }
         return null;
     }
 
     /**
-     * Produces the exact HTML/CSS/JS document matching src/main/resources/templates/batches/print.html
-     * (including explicit @page size rules for all thermal & A4 formats and the exact autoFitLabels() binary search).
+     * Produces the exact HTML/CSS/JS document directly from classpath:templates/batches/print.html
+     * with inline bootstrap.min.css so remote printing never drifts from direct browser printing.
      */
     private String buildStandalonePrintHtml(
             HarvestBatch batch,
@@ -402,40 +470,74 @@ public class PrintServerService {
             String customerCareAddress,
             String bootstrapCssUri) {
 
-        // If SpringTemplateEngine is injected, render the actual batches/print.html template and inject the local CSS URI & @page size
-        if (templateEngine != null) {
-            try {
-                Context ctx = new Context();
-                Map<Long, String> qrCodes = new HashMap<>();
-                for (InventoryUnit u : units) {
-                    if (u.getId() != null) {
-                        qrCodes.put(u.getId(), "");
-                    }
-                }
-                ctx.setVariable("batch", batch);
-                ctx.setVariable("units", units);
-                ctx.setVariable("qrCodes", qrCodes);
-                ctx.setVariable("companyName", companyName);
-                ctx.setVariable("contactNumber", contactNumber);
-                ctx.setVariable("registeredOfficeAddress", registeredOfficeAddress);
-                ctx.setVariable("customerCareAddress", customerCareAddress);
-                ctx.setVariable("labelSheetSize", labelSheetSize);
-                ctx.setVariable("customLabelWidth", widthMm);
-                ctx.setVariable("customLabelHeight", heightMm);
-                ctx.setVariable("printServerAvailable", true);
-                ctx.setVariable("printServerUrl", "");
-                ctx.setVariable("printServerMessage", "");
+        String inlineBootstrapCss = "";
+        try (InputStream cssIn = new ClassPathResource("static/css/bootstrap.min.css").getInputStream()) {
+            inlineBootstrapCss = new String(cssIn.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (Exception ignored) {
+        }
 
-                String rendered = templateEngine.process("batches/print", ctx);
-                // Replace relative bootstrap link with local file URI and enforce explicit @page dimensions
-                rendered = rendered.replace("href=\"/css/bootstrap.min.css\"", "href=\"" + bootstrapCssUri + "\"")
-                        .replace("href=\"css/bootstrap.min.css\"", "href=\"" + bootstrapCssUri + "\"");
-                String pageSizeCss = "<style>@page { size: " + widthMm + "mm " + heightMm + "mm !important; margin: 0 !important; } .no-print { display: none !important; }</style></head>";
-                rendered = rendered.replace("</head>", pageSizeCss);
-                return rendered;
-            } catch (Exception e) {
-                log.debug("Direct templateEngine render skipped ({}), using standalone replica HTML", e.getMessage());
+        // Render the live classpath:templates/batches/print.html template via StringTemplateResolver
+        // so that any template changes in batches/print.html are automatically reflected in remote print.
+        try (InputStream tplIn = new ClassPathResource("templates/batches/print.html").getInputStream()) {
+            String rawTemplate = new String(tplIn.readAllBytes(), StandardCharsets.UTF_8);
+
+            // Strip the second script block (status polling / server print AJAX) which uses @{...} URL expressions
+            int statusScriptIdx = rawTemplate.indexOf("<script th:inline=\"javascript\">");
+            if (statusScriptIdx > 0) {
+                int endBodyIdx = rawTemplate.indexOf("</body>", statusScriptIdx);
+                if (endBodyIdx > statusScriptIdx) {
+                    rawTemplate = rawTemplate.substring(0, statusScriptIdx) + rawTemplate.substring(endBodyIdx);
+                }
             }
+
+            // Replace context-relative @{...} attributes so standalone Thymeleaf evaluation does not require IWebContext
+            rawTemplate = rawTemplate
+                    .replace("th:href=\"@{/favicon.svg}\"", "href=\"\"")
+                    .replace("<link th:href=\"@{/css/bootstrap.min.css}\" rel=\"stylesheet\">",
+                            "<style>" + inlineBootstrapCss + "</style>")
+                    .replaceAll("th:href=\"@\\{[^\\\"]*\\}\"", "href=\"#\"");
+
+            SpringTemplateEngine standaloneEngine = new SpringTemplateEngine();
+            org.thymeleaf.templateresolver.StringTemplateResolver stringResolver =
+                    new org.thymeleaf.templateresolver.StringTemplateResolver();
+            stringResolver.setTemplateMode(org.thymeleaf.templatemode.TemplateMode.HTML);
+            stringResolver.setCacheable(false);
+            standaloneEngine.setTemplateResolver(stringResolver);
+
+            Context ctx = new Context();
+            Map<Long, String> qrCodes = new HashMap<>();
+            for (InventoryUnit u : units) {
+                if (u.getId() != null) {
+                    qrCodes.put(u.getId(), "");
+                }
+            }
+            ctx.setVariable("batch", batch);
+            ctx.setVariable("units", units);
+            ctx.setVariable("qrCodes", qrCodes);
+            ctx.setVariable("companyName", companyName);
+            ctx.setVariable("contactNumber", contactNumber);
+            ctx.setVariable("registeredOfficeAddress", registeredOfficeAddress);
+            ctx.setVariable("customerCareAddress", customerCareAddress);
+            ctx.setVariable("labelSheetSize", labelSheetSize);
+            ctx.setVariable("customLabelWidth", widthMm);
+            ctx.setVariable("customLabelHeight", heightMm);
+            ctx.setVariable("printServerAvailable", true);
+            ctx.setVariable("sameMachineAsPrintServer", true);
+            ctx.setVariable("hideServerPrintOnWorkstation", true);
+            ctx.setVariable("hideClientPrintOnRemote", true);
+            ctx.setVariable("hideServerPrint", true);
+            ctx.setVariable("hideClientPrint", true);
+            ctx.setVariable("printServerUrl", "");
+            ctx.setVariable("printServerMessage", "");
+
+            String rendered = standaloneEngine.process(rawTemplate, ctx);
+            String pageSizeCss = "<style>@page { size: " + widthMm + "mm " + heightMm + "mm !important; margin: 0 !important; } "
+                    + "html, body { margin: 0 !important; padding: 0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } "
+                    + ".container-fluid { padding: 0 !important; margin: 0 !important; } "
+                    + ".no-print { display: none !important; }</style></head>";
+            return rendered.replace("</head>", pageSizeCss);
+        } catch (Exception e) {
+            log.warn("Live batches/print.html template render failed ({}), using standalone replica HTML", e.getMessage());
         }
 
         Product product = batch != null ? batch.getProduct() : null;
@@ -443,7 +545,11 @@ public class PrintServerService {
 
         StringBuilder sb = new StringBuilder(16384);
         sb.append("<!DOCTYPE html><html><head><meta charset=\"UTF-8\">");
-        sb.append("<link href=\"").append(bootstrapCssUri).append("\" rel=\"stylesheet\">");
+        if (!inlineBootstrapCss.isEmpty()) {
+            sb.append("<style>").append(inlineBootstrapCss).append("</style>");
+        } else if (bootstrapCssUri != null) {
+            sb.append("<link href=\"").append(bootstrapCssUri).append("\" rel=\"stylesheet\">");
+        }
         sb.append("<style>\n");
         sb.append("@page { size: ").append(widthMm).append("mm ").append(heightMm).append("mm; margin: 0; }\n");
         sb.append("html, body { margin: 0; padding: 0; background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }\n");
