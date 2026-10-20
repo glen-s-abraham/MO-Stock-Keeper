@@ -353,6 +353,9 @@
         const initialHideServerPrintOnWorkstation = /*[[${hideServerPrintOnWorkstation != null ? hideServerPrintOnWorkstation : true}]]*/ true;
         const initialHideClientPrintOnRemote = /*[[${hideClientPrintOnRemote != null ? hideClientPrintOnRemote : true}]]*/ true;
 
+        const initialPrintServerAvailable = /*[[${printServerAvailable != null ? printServerAvailable : false}]]*/ false;
+        let statusPollTimer = null;
+
         document.addEventListener("DOMContentLoaded", function () {
             refreshPrintServerStatus();
         });
@@ -414,59 +417,80 @@
             }
         }
 
+        function scheduleStatusRecheckIfOffline(isAvailable, isWorkstation, hideServerOnWorkstation) {
+            if (statusPollTimer) {
+                clearTimeout(statusPollTimer);
+                statusPollTimer = null;
+            }
+            if (!isAvailable && !(isWorkstation && hideServerOnWorkstation)) {
+                statusPollTimer = setTimeout(() => refreshPrintServerStatus(), 8000);
+            }
+        }
+
+        async function fetchBackendPrintStatus() {
+            try {
+                const resp = await fetch(statusEndpointUrl, {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (resp.ok && !resp.redirected) {
+                    return await resp.json();
+                }
+            } catch (ignored) {
+            }
+            return null;
+        }
+
         async function refreshPrintServerStatus() {
             const controls = document.getElementById('serverPrintControls');
             const btn = document.getElementById('serverPrintBtn');
             const badge = document.getElementById('printServerStatusBadge');
             if (!btn || !badge || !controls) return;
 
-            const isLocalWorkstation = await isCurrentMachinePrintServerWorkstation();
+            const [isLocalWorkstation, data] = await Promise.all([
+                isCurrentMachinePrintServerWorkstation(),
+                fetchBackendPrintStatus()
+            ]);
 
-            try {
-                const resp = await fetch(statusEndpointUrl, {
-                    method: 'GET',
-                    headers: { 'Accept': 'application/json' }
-                });
-                if (resp.ok) {
-                    const data = await resp.json();
-                    const isWorkstation = Boolean(isLocalWorkstation || data.sameMachineAsPrintServer);
-                    const hideServerOnWorkstation = data.hideServerPrintOnWorkstation !== undefined
-                        ? Boolean(data.hideServerPrintOnWorkstation)
-                        : Boolean(initialHideServerPrintOnWorkstation);
-                    const hideClientOnRemote = data.hideClientPrintOnRemote !== undefined
-                        ? Boolean(data.hideClientPrintOnRemote)
-                        : Boolean(initialHideClientPrintOnRemote);
+            if (data) {
+                const isWorkstation = Boolean(isLocalWorkstation || data.sameMachineAsPrintServer);
+                const hideServerOnWorkstation = data.hideServerPrintOnWorkstation !== undefined
+                    ? Boolean(data.hideServerPrintOnWorkstation)
+                    : Boolean(initialHideServerPrintOnWorkstation);
+                const hideClientOnRemote = data.hideClientPrintOnRemote !== undefined
+                    ? Boolean(data.hideClientPrintOnRemote)
+                    : Boolean(initialHideClientPrintOnRemote);
 
-                    applyPrintButtonsVisibility(isWorkstation, hideServerOnWorkstation, hideClientOnRemote);
-                    if (isWorkstation && hideServerOnWorkstation) {
-                        return;
-                    }
-
-                    btn.disabled = !data.available;
-                    btn.title = data.message || '';
-                    badge.title = data.message || '';
-                    if (data.available) {
-                        badge.className = 'badge bg-success';
-                        badge.textContent = 'Print Server: Online';
-                    } else {
-                        badge.className = 'badge bg-secondary';
-                        badge.textContent = 'Print Server: Offline';
-                    }
+                applyPrintButtonsVisibility(isWorkstation, hideServerOnWorkstation, hideClientOnRemote);
+                if (isWorkstation && hideServerOnWorkstation) {
                     return;
                 }
-            } catch (e) {
-                // Fallback if status endpoint fails
+
+                btn.disabled = !data.available;
+                btn.title = data.message || '';
+                badge.title = data.message || '';
+                if (data.available) {
+                    badge.className = 'badge bg-success';
+                    badge.textContent = 'Print Server: Online';
+                } else {
+                    badge.className = 'badge bg-secondary';
+                    badge.textContent = 'Print Server: Offline';
+                }
+                scheduleStatusRecheckIfOffline(Boolean(data.available), isWorkstation, hideServerOnWorkstation);
+                return;
             }
 
-            applyPrintButtonsVisibility(
-                isLocalWorkstation,
-                Boolean(initialHideServerPrintOnWorkstation),
-                Boolean(initialHideClientPrintOnRemote)
-            );
-            if (!isLocalWorkstation || !initialHideServerPrintOnWorkstation) {
-                btn.disabled = true;
-                badge.className = 'badge bg-secondary';
-                badge.textContent = 'Print Server: Offline';
+            const hideServerOnWorkstation = Boolean(initialHideServerPrintOnWorkstation);
+            const hideClientOnRemote = Boolean(initialHideClientPrintOnRemote);
+            applyPrintButtonsVisibility(isLocalWorkstation, hideServerOnWorkstation, hideClientOnRemote);
+            if (!isLocalWorkstation || !hideServerOnWorkstation) {
+                if (!initialPrintServerAvailable) {
+                    btn.disabled = true;
+                    badge.className = 'badge bg-secondary';
+                    badge.textContent = 'Print Server: Offline';
+                }
+                scheduleStatusRecheckIfOffline(false, isLocalWorkstation, hideServerOnWorkstation);
             }
         }
 

@@ -53,11 +53,11 @@ public class PrintServerService {
     private final SettingsService settingsService;
     private SpringTemplateEngine templateEngine;
 
-    @Value("${app.print-server.connect-timeout-ms:1500}")
-    private int connectTimeoutMs = 1500;
+    @Value("${app.print-server.connect-timeout-ms:3000}")
+    private int connectTimeoutMs = 3000;
 
-    @Value("${app.print-server.read-timeout-ms:10000}")
-    private int readTimeoutMs = 10000;
+    @Value("${app.print-server.read-timeout-ms:15000}")
+    private int readTimeoutMs = 15000;
 
     public PrintServerService(SettingsService settingsService) {
         this.settingsService = settingsService;
@@ -76,7 +76,8 @@ public class PrintServerService {
     }
 
     /**
-     * Probes TCP/HTTP reachability of a given print server base URL within {@code connectTimeoutMs}.
+     * Probes TCP/HTTP reachability of a given print server base URL within {@code connectTimeoutMs},
+     * retrying once on timeout to handle USB Wi-Fi adapter power-save wakeup latency on the print workstation.
      */
     public PrintServerStatusResponse checkConnectivity(String rawUrl) {
         if (rawUrl == null || rawUrl.trim().isEmpty()) {
@@ -97,11 +98,20 @@ public class PrintServerService {
                 port = scheme.equalsIgnoreCase("https") ? 443 : 80;
             }
 
-            try (Socket socket = new Socket()) {
-                socket.connect(new InetSocketAddress(host, port), connectTimeoutMs);
+            Exception lastException = null;
+            int maxAttempts = connectTimeoutMs >= 1000 ? 2 : 1;
+            for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+                try (Socket socket = new Socket()) {
+                    socket.connect(new InetSocketAddress(host, port), connectTimeoutMs);
+                    return new PrintServerStatusResponse(true, trimmedUrl, "Print server is online (" + host + ":" + port + ")");
+                } catch (Exception connectEx) {
+                    lastException = connectEx;
+                }
             }
 
-            return new PrintServerStatusResponse(true, trimmedUrl, "Print server is online (" + host + ":" + port + ")");
+            String errMsg = lastException != null ? lastException.getMessage() : "Connection timed out";
+            log.debug("Print server connectivity check failed for {}: {}", trimmedUrl, errMsg);
+            return new PrintServerStatusResponse(false, trimmedUrl, "Print server unreachable (" + errMsg + ")");
         } catch (IllegalArgumentException e) {
             return new PrintServerStatusResponse(false, trimmedUrl, "Invalid print server URL: " + e.getMessage());
         } catch (Exception e) {
