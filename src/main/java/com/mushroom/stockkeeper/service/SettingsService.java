@@ -2,6 +2,7 @@ package com.mushroom.stockkeeper.service;
 
 import com.mushroom.stockkeeper.model.AppSetting;
 import com.mushroom.stockkeeper.repository.AppSettingRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -11,12 +12,22 @@ public class SettingsService {
 
     private final AppSettingRepository appSettingRepository;
 
+    @Value("${app.print-server.url:http://192.168.1.53:8080}")
+    private String defaultPrintServerUrl = "http://192.168.1.53:8080";
+
+    @Value("${app.print-server.hide-server-print-on-workstation:true}")
+    private boolean hideServerPrintOnWorkstation = true;
+
+    @Value("${app.print-server.hide-client-print-on-remote:true}")
+    private boolean hideClientPrintOnRemote = true;
+
     public static final String KEY_COMPANY_NAME = "company_name";
     public static final String KEY_CONTACT_NUMBER = "company_phone";
     public static final String KEY_REGISTERED_OFFICE = "company_registered_office";
     public static final String KEY_CUSTOMER_CARE = "company_customer_care";
     public static final String KEY_LABEL_SHEET_SIZE = "label_sheet_size";
     public static final String KEY_TARGET_PRINTER = "target_printer";
+    public static final String KEY_PRINT_SERVER_URL = "print_server_url";
     public static final String KEY_CUSTOM_LABEL_WIDTH = "custom_label_width";
     public static final String KEY_CUSTOM_LABEL_HEIGHT = "custom_label_height";
 
@@ -58,6 +69,34 @@ public class SettingsService {
         return appSettingRepository.findBySettingKey(KEY_TARGET_PRINTER)
                 .map(AppSetting::getSettingValue)
                 .orElse("");
+    }
+
+    public String getPrintServerUrl() {
+        return appSettingRepository.findBySettingKey(KEY_PRINT_SERVER_URL)
+                .map(AppSetting::getSettingValue)
+                .filter(val -> val != null && !val.trim().isEmpty())
+                .map(String::trim)
+                .orElse(defaultPrintServerUrl);
+    }
+
+    public String getDefaultPrintServerUrl() {
+        return defaultPrintServerUrl;
+    }
+
+    public boolean isHideServerPrintOnWorkstation() {
+        return hideServerPrintOnWorkstation;
+    }
+
+    public void setHideServerPrintOnWorkstation(boolean hideServerPrintOnWorkstation) {
+        this.hideServerPrintOnWorkstation = hideServerPrintOnWorkstation;
+    }
+
+    public boolean isHideClientPrintOnRemote() {
+        return hideClientPrintOnRemote;
+    }
+
+    public void setHideClientPrintOnRemote(boolean hideClientPrintOnRemote) {
+        this.hideClientPrintOnRemote = hideClientPrintOnRemote;
     }
 
     public Integer getCustomLabelWidth() {

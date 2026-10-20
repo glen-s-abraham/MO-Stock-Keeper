@@ -1,5 +1,7 @@
 package com.mushroom.stockkeeper.controller;
 
+import com.mushroom.stockkeeper.dto.PrintServerStatusResponse;
+import com.mushroom.stockkeeper.dto.ServerPrintResponse;
 import com.mushroom.stockkeeper.model.HarvestBatch;
 import com.mushroom.stockkeeper.model.InventoryUnit;
 import com.mushroom.stockkeeper.model.Product;
@@ -7,7 +9,10 @@ import com.mushroom.stockkeeper.repository.HarvestBatchRepository;
 import com.mushroom.stockkeeper.repository.InventoryUnitRepository;
 import com.mushroom.stockkeeper.repository.ProductRepository;
 import com.mushroom.stockkeeper.service.BatchService;
+import com.mushroom.stockkeeper.service.PrintServerService;
 import com.mushroom.stockkeeper.service.QrCodeService;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -34,16 +39,19 @@ public class HarvestBatchController {
     private final BatchService batchService;
     private final QrCodeService qrCodeService;
     private final com.mushroom.stockkeeper.service.SettingsService settingsService;
+    private final PrintServerService printServerService;
 
     public HarvestBatchController(HarvestBatchRepository batchRepository, ProductRepository productRepository,
             InventoryUnitRepository unitRepository, BatchService batchService, QrCodeService qrCodeService,
-            com.mushroom.stockkeeper.service.SettingsService settingsService) {
+            com.mushroom.stockkeeper.service.SettingsService settingsService,
+            PrintServerService printServerService) {
         this.batchRepository = batchRepository;
         this.productRepository = productRepository;
         this.unitRepository = unitRepository;
         this.batchService = batchService;
         this.qrCodeService = qrCodeService;
         this.settingsService = settingsService;
+        this.printServerService = printServerService;
     }
 
     @GetMapping
@@ -157,45 +165,30 @@ public class HarvestBatchController {
             @RequestParam(required = false) Long unitId,
             @RequestParam(required = false) Integer seqStart,
             @RequestParam(required = false) Integer seqEnd,
+            jakarta.servlet.http.HttpServletRequest request,
             Model model) {
         HarvestBatch batch = batchRepository.findById(id).orElseThrow();
 
-        List<InventoryUnit> units;
-
-        // Base List
-        // Optimized: Use direct DB query
-        List<InventoryUnit> allBatchUnits = unitRepository.findByBatchId(id);
-
-        if (unitId != null) {
-            // Print specific unit
-            units = allBatchUnits.stream()
-                    .filter(u -> u.getId().equals(unitId))
-                    .collect(Collectors.toList());
-        } else if (seqStart != null && seqEnd != null) {
-            // Print Range (e.g. 1 to 50)
-            // Assumption: UUID is BatchCode-SEQ.
-            units = allBatchUnits.stream()
-                    .filter(u -> {
-                        try {
-                            String uuid = u.getUuid();
-                            String seqStr = uuid.substring(uuid.lastIndexOf('-') + 1);
-                            int seq = Integer.parseInt(seqStr);
-                            return seq >= seqStart && seq <= seqEnd;
-                        } catch (Exception e) {
-                            return false; // Skip malformed
-                        }
-                    })
-                    .collect(Collectors.toList());
-        } else {
-            // Print All
-            units = allBatchUnits;
-        }
+        List<InventoryUnit> units = filterBatchUnits(id, unitId, seqStart, seqEnd);
 
         // Generate Base64 QRs for each unit
         // Map<UnitId, Base64String>
         Map<Long, String> qrCodes = units.stream().collect(Collectors.toMap(
                 InventoryUnit::getId,
                 u -> qrCodeService.generateQrCodeBase64(u.getQrCodeContent(), 150, 150)));
+
+        String clientIp = extractClientIp(request);
+        boolean isSameMachine = printServerService.isClientSameAsPrintServer(clientIp);
+        boolean hideServerPrintOnWorkstation = settingsService.isHideServerPrintOnWorkstation();
+        boolean hideClientPrintOnRemote = settingsService.isHideClientPrintOnRemote();
+
+        PrintServerStatusResponse status = (isSameMachine && hideServerPrintOnWorkstation)
+                ? new PrintServerStatusResponse(false, settingsService.getPrintServerUrl(),
+                        "Client is on the print server workstation (use direct Print)", true)
+                : printServerService.checkConnectivity();
+        boolean printServerAvailable = !(isSameMachine && hideServerPrintOnWorkstation) && status != null && status.isAvailable();
+        boolean hideServerPrint = isSameMachine && hideServerPrintOnWorkstation;
+        boolean hideClientPrint = !isSameMachine && hideClientPrintOnRemote;
 
         model.addAttribute("batch", batch);
         model.addAttribute("units", units);
@@ -207,7 +200,111 @@ public class HarvestBatchController {
         model.addAttribute("labelSheetSize", settingsService.getLabelSheetSize());
         model.addAttribute("customLabelWidth", settingsService.getCustomLabelWidth());
         model.addAttribute("customLabelHeight", settingsService.getCustomLabelHeight());
+        model.addAttribute("printServerAvailable", printServerAvailable);
+        model.addAttribute("sameMachineAsPrintServer", isSameMachine);
+        model.addAttribute("hideServerPrintOnWorkstation", hideServerPrintOnWorkstation);
+        model.addAttribute("hideClientPrintOnRemote", hideClientPrintOnRemote);
+        model.addAttribute("hideServerPrint", hideServerPrint);
+        model.addAttribute("hideClientPrint", hideClientPrint);
+        model.addAttribute("printServerUrl", settingsService.getPrintServerUrl());
+        model.addAttribute("printServerMessage", status != null ? status.getMessage() : "Print server unavailable");
+        model.addAttribute("unitId", unitId);
+        model.addAttribute("seqStart", seqStart);
+        model.addAttribute("seqEnd", seqEnd);
         return "batches/print";
+    }
+
+    @GetMapping("/print-server/status")
+    @ResponseBody
+    public ResponseEntity<PrintServerStatusResponse> printServerStatus(jakarta.servlet.http.HttpServletRequest request) {
+        String clientIp = extractClientIp(request);
+        boolean isSameMachine = printServerService.isClientSameAsPrintServer(clientIp);
+        boolean hideServerPrintOnWorkstation = settingsService.isHideServerPrintOnWorkstation();
+        boolean hideClientPrintOnRemote = settingsService.isHideClientPrintOnRemote();
+
+        if (isSameMachine && hideServerPrintOnWorkstation) {
+            PrintServerStatusResponse workstationStatus = new PrintServerStatusResponse(
+                    false,
+                    settingsService.getPrintServerUrl(),
+                    "Client is on the print server workstation (use direct Print)",
+                    true);
+            workstationStatus.setHideServerPrintOnWorkstation(hideServerPrintOnWorkstation);
+            workstationStatus.setHideClientPrintOnRemote(hideClientPrintOnRemote);
+            return ResponseEntity.ok(workstationStatus);
+        }
+        PrintServerStatusResponse status = printServerService.checkConnectivity();
+        if (status != null) {
+            status.setSameMachineAsPrintServer(isSameMachine);
+            status.setHideServerPrintOnWorkstation(hideServerPrintOnWorkstation);
+            status.setHideClientPrintOnRemote(hideClientPrintOnRemote);
+        }
+        return ResponseEntity.ok(status);
+    }
+
+    private String extractClientIp(jakarta.servlet.http.HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        // Only use CF-Connecting-IP / X-Forwarded-For if present, otherwise remoteAddr
+        String cfIp = request.getHeader("CF-Connecting-IP");
+        if (cfIp != null && !cfIp.trim().isEmpty()) {
+            return cfIp.trim();
+        }
+        String xff = request.getHeader("X-Forwarded-For");
+        if (xff != null && !xff.trim().isEmpty()) {
+            return xff.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
+    }
+
+    @PostMapping("/{id}/server-print")
+    @ResponseBody
+    public ResponseEntity<ServerPrintResponse> serverPrint(@PathVariable Long id,
+            @RequestParam(required = false) Long unitId,
+            @RequestParam(required = false) Integer seqStart,
+            @RequestParam(required = false) Integer seqEnd) {
+        HarvestBatch batch = batchRepository.findById(id).orElse(null);
+        if (batch == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ServerPrintResponse(false, id, 0, 0, "Batch not found"));
+        }
+
+        List<InventoryUnit> units = filterBatchUnits(id, unitId, seqStart, seqEnd);
+        if (units.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(new ServerPrintResponse(false, id, 0, 0, "No inventory units match the selected print filter"));
+        }
+
+        ServerPrintResponse response = printServerService.printBatchLabels(batch, units);
+        if (response.isSuccess()) {
+            return ResponseEntity.ok(response);
+        } else {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+        }
+    }
+
+    private List<InventoryUnit> filterBatchUnits(Long batchId, Long unitId, Integer seqStart, Integer seqEnd) {
+        List<InventoryUnit> allBatchUnits = unitRepository.findByBatchId(batchId);
+        if (unitId != null) {
+            return allBatchUnits.stream()
+                    .filter(u -> u.getId().equals(unitId))
+                    .collect(Collectors.toList());
+        } else if (seqStart != null && seqEnd != null) {
+            return allBatchUnits.stream()
+                    .filter(u -> {
+                        try {
+                            String uuid = u.getUuid();
+                            String seqStr = uuid.substring(uuid.lastIndexOf('-') + 1);
+                            int seq = Integer.parseInt(seqStr);
+                            return seq >= seqStart && seq <= seqEnd;
+                        } catch (Exception e) {
+                            return false;
+                        }
+                    })
+                    .collect(Collectors.toList());
+        } else {
+            return allBatchUnits;
+        }
     }
 
     @PostMapping("/{id}/delete")

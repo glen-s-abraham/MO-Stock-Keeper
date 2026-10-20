@@ -146,21 +146,47 @@
         }
     '"></style>
 
+    <meta name="_csrf" th:if="${_csrf != null}" th:content="${_csrf.token}" />
+    <meta name="_csrf_header" th:if="${_csrf != null}" th:content="${_csrf.headerName}" />
 </head>
 
 <body th:class="'sheet-' + ${labelSheetSize != null ? labelSheetSize : 'A4_40'}">
     <div class="container-fluid">
-        <div class="no-print d-flex justify-content-between align-items-center bg-light p-3 border-bottom mb-4">
+        <div class="no-print d-flex justify-content-between align-items-center bg-light p-3 border-bottom mb-2">
             <div>
                 <h4 class="mb-0">Batch: <span th:text="${batch.batchCode}"></span></h4>
                 <small class="text-muted" th:text="${batch.product.name}"></small>
             </div>
-            <div>
-                <button onclick="window.print()" class="btn btn-primary"><i
+            <div class="d-flex align-items-center gap-2">
+                <span id="serverPrintControls"
+                      class="d-inline-flex align-items-center gap-2"
+                      th:classappend="${(hideServerPrint != null and hideServerPrint) or (hideServerPrint == null and sameMachineAsPrintServer != null and sameMachineAsPrintServer)} ? 'd-none' : ''">
+                    <span id="printServerStatusBadge"
+                          th:class="${printServerAvailable != null and printServerAvailable} ? 'badge bg-success' : 'badge bg-secondary'"
+                          th:title="${printServerMessage}"
+                          th:text="${printServerAvailable != null and printServerAvailable} ? 'Print Server: Online' : 'Print Server: Offline'">
+                        Print Server: Offline
+                    </span>
+                    <button id="serverPrintBtn"
+                            type="button"
+                            onclick="triggerServerPrint()"
+                            class="btn btn-success"
+                            th:disabled="${printServerAvailable == null or !printServerAvailable}"
+                            th:title="${printServerMessage != null ? printServerMessage : 'Server-side LAN printing'}">
+                        <i class="bi bi-cloud-upload-fill me-2"></i><span id="serverPrintBtnText">Server Print</span>
+                    </button>
+                </span>
+                <button id="clientPrintBtn"
+                        type="button"
+                        onclick="window.print()"
+                        class="btn btn-primary"
+                        th:classappend="${hideClientPrint != null and hideClientPrint} ? 'd-none' : ''"
+                        th:disabled="${hideClientPrint != null and hideClientPrint}"><i
                         class="bi bi-printer-fill me-2"></i>Print</button>
                 <a th:href="@{/batches/{id}(id=${batch.id})}" class="btn btn-outline-secondary">Back</a>
             </div>
         </div>
+        <div id="serverPrintFeedback" class="no-print alert d-none mb-3" role="alert"></div>
 
         <div class="label-grid">
             <div th:each="u : ${units}" class="label-item">
@@ -318,6 +344,186 @@
                     content.style.marginTop = topMargin + 'px';
                 }
             });
+        }
+    </script>
+    <script th:inline="javascript">
+        const batchId = /*[[${batch.id}]]*/ 0;
+        const statusEndpointUrl = /*[[@{/batches/print-server/status}]]*/ '/batches/print-server/status';
+        const serverPrintBaseUrl = /*[[@{/batches/{id}/server-print(id=${batch.id})}]]*/ '/batches/0/server-print';
+        const initialHideServerPrintOnWorkstation = /*[[${hideServerPrintOnWorkstation != null ? hideServerPrintOnWorkstation : true}]]*/ true;
+        const initialHideClientPrintOnRemote = /*[[${hideClientPrintOnRemote != null ? hideClientPrintOnRemote : true}]]*/ true;
+
+        document.addEventListener("DOMContentLoaded", function () {
+            refreshPrintServerStatus();
+        });
+
+        async function isCurrentMachinePrintServerWorkstation() {
+            // Check if the browser is running on the workstation where H30PrintServer is listening on 127.0.0.1:8080
+            try {
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 600);
+                const localResp = await fetch('http://127.0.0.1:8080/', {
+                    method: 'GET',
+                    mode: 'cors',
+                    signal: controller.signal
+                });
+                clearTimeout(timer);
+                if (localResp.ok) {
+                    const info = await localResp.json();
+                    if (info && info.status === 'online' && info.printer) {
+                        return true;
+                    }
+                }
+            } catch (ignored) {
+                // Not running H30PrintServer locally on 127.0.0.1:8080
+            }
+            return false;
+        }
+
+        function applyPrintButtonsVisibility(isWorkstation, hideServerOnWorkstation, hideClientOnRemote) {
+            const controls = document.getElementById('serverPrintControls');
+            const serverBtn = document.getElementById('serverPrintBtn');
+            const clientBtn = document.getElementById('clientPrintBtn');
+
+            if (isWorkstation) {
+                if (controls && serverBtn) {
+                    if (hideServerOnWorkstation) {
+                        controls.classList.add('d-none');
+                        serverBtn.disabled = true;
+                    } else {
+                        controls.classList.remove('d-none');
+                    }
+                }
+                if (clientBtn) {
+                    clientBtn.classList.remove('d-none');
+                    clientBtn.disabled = false;
+                }
+            } else {
+                if (controls) {
+                    controls.classList.remove('d-none');
+                }
+                if (clientBtn) {
+                    if (hideClientOnRemote) {
+                        clientBtn.classList.add('d-none');
+                        clientBtn.disabled = true;
+                    } else {
+                        clientBtn.classList.remove('d-none');
+                        clientBtn.disabled = false;
+                    }
+                }
+            }
+        }
+
+        async function refreshPrintServerStatus() {
+            const controls = document.getElementById('serverPrintControls');
+            const btn = document.getElementById('serverPrintBtn');
+            const badge = document.getElementById('printServerStatusBadge');
+            if (!btn || !badge || !controls) return;
+
+            const isLocalWorkstation = await isCurrentMachinePrintServerWorkstation();
+
+            try {
+                const resp = await fetch(statusEndpointUrl, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    const isWorkstation = Boolean(isLocalWorkstation || data.sameMachineAsPrintServer);
+                    const hideServerOnWorkstation = data.hideServerPrintOnWorkstation !== undefined
+                        ? Boolean(data.hideServerPrintOnWorkstation)
+                        : Boolean(initialHideServerPrintOnWorkstation);
+                    const hideClientOnRemote = data.hideClientPrintOnRemote !== undefined
+                        ? Boolean(data.hideClientPrintOnRemote)
+                        : Boolean(initialHideClientPrintOnRemote);
+
+                    applyPrintButtonsVisibility(isWorkstation, hideServerOnWorkstation, hideClientOnRemote);
+                    if (isWorkstation && hideServerOnWorkstation) {
+                        return;
+                    }
+
+                    btn.disabled = !data.available;
+                    btn.title = data.message || '';
+                    badge.title = data.message || '';
+                    if (data.available) {
+                        badge.className = 'badge bg-success';
+                        badge.textContent = 'Print Server: Online';
+                    } else {
+                        badge.className = 'badge bg-secondary';
+                        badge.textContent = 'Print Server: Offline';
+                    }
+                    return;
+                }
+            } catch (e) {
+                // Fallback if status endpoint fails
+            }
+
+            applyPrintButtonsVisibility(
+                isLocalWorkstation,
+                Boolean(initialHideServerPrintOnWorkstation),
+                Boolean(initialHideClientPrintOnRemote)
+            );
+            if (!isLocalWorkstation || !initialHideServerPrintOnWorkstation) {
+                btn.disabled = true;
+                badge.className = 'badge bg-secondary';
+                badge.textContent = 'Print Server: Offline';
+            }
+        }
+
+        async function triggerServerPrint() {
+            const btn = document.getElementById('serverPrintBtn');
+            const btnText = document.getElementById('serverPrintBtnText');
+            const feedback = document.getElementById('serverPrintFeedback');
+            if (!btn || btn.disabled) return;
+
+            btn.disabled = true;
+            if (btnText) btnText.textContent = 'Printing...';
+            if (feedback) {
+                feedback.className = 'no-print alert alert-info mb-3';
+                feedback.textContent = 'Generating multi-page PDF and sending to LAN print server...';
+            }
+
+            try {
+                const csrfTokenMeta = document.querySelector('meta[name="_csrf"]');
+                const csrfHeaderMeta = document.querySelector('meta[name="_csrf_header"]');
+                const headers = { 'Accept': 'application/json' };
+                if (csrfTokenMeta && csrfHeaderMeta) {
+                    headers[csrfHeaderMeta.getAttribute('content')] = csrfTokenMeta.getAttribute('content');
+                }
+
+                const searchParams = new URLSearchParams(window.location.search);
+                const targetUrl = searchParams.toString()
+                    ? `${serverPrintBaseUrl}?${searchParams.toString()}`
+                    : serverPrintBaseUrl;
+
+                const resp = await fetch(targetUrl, {
+                    method: 'POST',
+                    headers: headers
+                });
+
+                const result = await resp.json();
+                if (resp.ok && result.success) {
+                    if (feedback) {
+                        feedback.className = 'no-print alert alert-success mb-3';
+                        feedback.textContent = result.message || 'Labels sent to print server successfully.';
+                    }
+                    btn.disabled = false;
+                } else {
+                    if (feedback) {
+                        feedback.className = 'no-print alert alert-danger mb-3';
+                        feedback.textContent = (result && result.message) ? result.message : 'Server-side print failed.';
+                    }
+                    await refreshPrintServerStatus();
+                }
+            } catch (err) {
+                if (feedback) {
+                    feedback.className = 'no-print alert alert-danger mb-3';
+                    feedback.textContent = 'Error communicating with server: ' + err.message;
+                }
+                await refreshPrintServerStatus();
+            } finally {
+                if (btnText) btnText.textContent = 'Server Print';
+            }
         }
     </script>
 </body>

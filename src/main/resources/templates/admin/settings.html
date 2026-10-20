@@ -67,6 +67,11 @@
                             <input type="text" class="form-control" name="target_printer" th:value="${settings.get('target_printer')}" placeholder="e.g. ZDesigner GK420t">
                             <div class="form-text">Optional: Matches printer name in OS dialog.</div>
                         </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Print Server URL (LAN Bridge)</label>
+                            <input type="text" class="form-control" name="print_server_url" th:value="${settings.get('print_server_url')}" placeholder="http://192.168.1.53:8080">
+                            <div class="form-text">Used for remote server-side label printing over LAN (e.g., H30PrintServer at http://192.168.1.53:8080).</div>
+                        </div>
                         
                         <!-- Custom Dimensions (Hidden unless THERMAL_CUSTOM) -->
                         <div class="col-6 col-md-3 custom-dims" style="display:none;">
