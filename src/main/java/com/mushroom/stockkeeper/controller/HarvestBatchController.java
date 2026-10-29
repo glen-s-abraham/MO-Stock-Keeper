@@ -1,5 +1,6 @@
 package com.mushroom.stockkeeper.controller;
 
+import com.mushroom.stockkeeper.dto.ManualLabelRange;
 import com.mushroom.stockkeeper.dto.PrintServerStatusResponse;
 import com.mushroom.stockkeeper.dto.ServerPrintResponse;
 import com.mushroom.stockkeeper.model.HarvestBatch;
@@ -11,6 +12,7 @@ import com.mushroom.stockkeeper.repository.ProductRepository;
 import com.mushroom.stockkeeper.service.BatchService;
 import com.mushroom.stockkeeper.service.PrintServerService;
 import com.mushroom.stockkeeper.service.QrCodeService;
+import com.mushroom.stockkeeper.service.SettingsService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -131,6 +133,183 @@ public class HarvestBatchController {
     public String createForm(Model model) {
         model.addAttribute("products", productRepository.findAll());
         return "batches/create";
+    }
+
+    @GetMapping("/manual-labels")
+    public String manualLabelsForm(Model model) {
+        int lastSequence = settingsService.getManualLabelLastSequence();
+        int nextSequence = lastSequence + 1;
+        model.addAttribute("products", productRepository.findAll());
+        model.addAttribute("lastSequence", lastSequence);
+        model.addAttribute("nextSequence", nextSequence);
+        model.addAttribute("nextBatchCode", ManualLabelRange.formatCode(nextSequence));
+        return "batches/manual-labels";
+    }
+
+    @PostMapping("/manual-labels/generate")
+    public String generateManualLabels(
+            @RequestParam Long productId,
+            @RequestParam Integer quantity,
+            org.springframework.web.servlet.mvc.support.RedirectAttributes redirectAttributes) {
+        try {
+            if (productId == null || productRepository.findById(productId).isEmpty()) {
+                throw new IllegalArgumentException("Please select a valid product.");
+            }
+            if (quantity == null || quantity < 1 || quantity > SettingsService.MAX_MANUAL_LABELS_PER_RUN) {
+                throw new IllegalArgumentException(
+                        "Quantity must be between 1 and " + SettingsService.MAX_MANUAL_LABELS_PER_RUN + " stickers.");
+            }
+            ManualLabelRange range = settingsService.allocateManualLabelSequence(quantity);
+            return "redirect:/batches/manual-labels/print?productId=" + productId
+                    + "&seqStart=" + range.getStartSeq()
+                    + "&seqEnd=" + range.getEndSeq();
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+            return "redirect:/batches/manual-labels";
+        }
+    }
+
+    @GetMapping("/manual-labels/print")
+    public String printManualLabels(
+            @RequestParam Long productId,
+            @RequestParam Integer seqStart,
+            @RequestParam Integer seqEnd,
+            jakarta.servlet.http.HttpServletRequest request,
+            Model model,
+            org.springframework.web.servlet.mvc.support.RedirectAttributes redirectAttributes) {
+        Product product = productRepository.findById(productId).orElse(null);
+        if (product == null) {
+            redirectAttributes.addFlashAttribute("error", "Product not found.");
+            return "redirect:/batches/manual-labels";
+        }
+        if (seqStart == null || seqEnd == null || seqStart < 1 || seqEnd < seqStart
+                || (seqEnd - seqStart + 1) > SettingsService.MAX_MANUAL_LABELS_PER_RUN) {
+            redirectAttributes.addFlashAttribute("error",
+                    "Invalid manual label sequence range. Please specify between 1 and "
+                            + SettingsService.MAX_MANUAL_LABELS_PER_RUN + " stickers.");
+            return "redirect:/batches/manual-labels";
+        }
+
+        HarvestBatch transientBatch = buildManualTransientBatch(product, seqStart, seqEnd);
+        List<InventoryUnit> transientUnits = buildManualTransientUnits(transientBatch, seqStart, seqEnd);
+
+        Map<Long, String> qrCodes = transientUnits.stream().collect(Collectors.toMap(
+                InventoryUnit::getId,
+                u -> ""));
+
+        String clientIp = extractClientIp(request);
+        boolean isSameMachine = printServerService.isClientSameAsPrintServer(clientIp);
+        boolean hideServerPrintOnWorkstation = settingsService.isHideServerPrintOnWorkstation();
+        boolean hideClientPrintOnRemote = settingsService.isHideClientPrintOnRemote();
+
+        PrintServerStatusResponse status = (isSameMachine && hideServerPrintOnWorkstation)
+                ? new PrintServerStatusResponse(false, settingsService.getPrintServerUrl(),
+                        "Client is on the print server workstation (use direct Print)", true)
+                : printServerService.checkConnectivity();
+        boolean printServerAvailable = !(isSameMachine && hideServerPrintOnWorkstation)
+                && status != null && status.isAvailable();
+        boolean hideServerPrint = isSameMachine && hideServerPrintOnWorkstation;
+        boolean hideClientPrint = !isSameMachine && hideClientPrintOnRemote;
+
+        model.addAttribute("batch", transientBatch);
+        model.addAttribute("units", transientUnits);
+        model.addAttribute("qrCodes", qrCodes);
+        model.addAttribute("manualMode", true);
+        model.addAttribute("backUrl", "/batches/manual-labels");
+        model.addAttribute("serverPrintUrl", "/batches/manual-labels/server-print");
+        model.addAttribute("companyName", settingsService.getCompanyName());
+        model.addAttribute("contactNumber", settingsService.getContactNumber());
+        model.addAttribute("registeredOfficeAddress", settingsService.getRegisteredOfficeAddress());
+        model.addAttribute("customerCareAddress", settingsService.getCustomerCareAddress());
+        model.addAttribute("labelSheetSize", settingsService.getLabelSheetSize());
+        model.addAttribute("customLabelWidth", settingsService.getCustomLabelWidth());
+        model.addAttribute("customLabelHeight", settingsService.getCustomLabelHeight());
+        model.addAttribute("printServerAvailable", printServerAvailable);
+        model.addAttribute("sameMachineAsPrintServer", isSameMachine);
+        model.addAttribute("hideServerPrintOnWorkstation", hideServerPrintOnWorkstation);
+        model.addAttribute("hideClientPrintOnRemote", hideClientPrintOnRemote);
+        model.addAttribute("hideServerPrint", hideServerPrint);
+        model.addAttribute("hideClientPrint", hideClientPrint);
+        model.addAttribute("printServerUrl", settingsService.getPrintServerUrl());
+        model.addAttribute("printServerMessage", status != null ? status.getMessage() : "Print server unavailable");
+        model.addAttribute("seqStart", seqStart);
+        model.addAttribute("seqEnd", seqEnd);
+        return "batches/print";
+    }
+
+    @PostMapping("/manual-labels/server-print")
+    @ResponseBody
+    public ResponseEntity<ServerPrintResponse> serverPrintManualLabels(
+            @RequestParam Long productId,
+            @RequestParam Integer seqStart,
+            @RequestParam Integer seqEnd) {
+        Product product = productRepository.findById(productId).orElse(null);
+        if (product == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ServerPrintResponse(false, 0L, 0, 0, "Product not found"));
+        }
+        if (seqStart == null || seqEnd == null || seqStart < 1 || seqEnd < seqStart
+                || (seqEnd - seqStart + 1) > SettingsService.MAX_MANUAL_LABELS_PER_RUN) {
+            return ResponseEntity.badRequest()
+                    .body(new ServerPrintResponse(false, 0L, 0, 0,
+                            "Invalid manual label sequence range"));
+        }
+
+        HarvestBatch transientBatch = buildManualTransientBatch(product, seqStart, seqEnd);
+        List<InventoryUnit> transientUnits = buildManualTransientUnits(transientBatch, seqStart, seqEnd);
+
+        ServerPrintResponse response = printServerService.printBatchLabels(transientBatch, transientUnits);
+        if (response.isSuccess()) {
+            return ResponseEntity.ok(response);
+        } else {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+        }
+    }
+
+    @PostMapping("/manual-labels/sequence")
+    public String updateManualLabelSequence(
+            @RequestParam Integer lastSequence,
+            org.springframework.web.servlet.mvc.support.RedirectAttributes redirectAttributes) {
+        try {
+            if (lastSequence == null || lastSequence < 0) {
+                throw new IllegalArgumentException("Sequence number must be 0 or greater.");
+            }
+            settingsService.setManualLabelLastSequence(lastSequence);
+            redirectAttributes.addFlashAttribute("success",
+                    "Manual label sequence updated. Next sticker set will start from "
+                            + ManualLabelRange.formatCode(lastSequence + 1) + ".");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/batches/manual-labels";
+    }
+
+    private HarvestBatch buildManualTransientBatch(Product product, int seqStart, int seqEnd) {
+        HarvestBatch batch = new HarvestBatch();
+        batch.setId(0L);
+        batch.setProduct(product);
+        batch.setTotalUnits(seqEnd - seqStart + 1);
+        batch.setBatchDate(null);
+        batch.setExpiryDate(null);
+        String rangeLabel = seqStart == seqEnd
+                ? ManualLabelRange.formatCode(seqStart)
+                : ManualLabelRange.formatCode(seqStart) + " to " + ManualLabelRange.formatCode(seqEnd);
+        batch.setBatchCode(rangeLabel);
+        return batch;
+    }
+
+    private List<InventoryUnit> buildManualTransientUnits(HarvestBatch batch, int seqStart, int seqEnd) {
+        List<InventoryUnit> units = new ArrayList<>(seqEnd - seqStart + 1);
+        for (int seq = seqStart; seq <= seqEnd; seq++) {
+            InventoryUnit unit = new InventoryUnit();
+            unit.setId((long) seq);
+            unit.setBatch(batch);
+            String code = ManualLabelRange.formatCode(seq);
+            unit.setUuid(code);
+            unit.setQrCodeContent("U:" + code);
+            units.add(unit);
+        }
+        return units;
     }
 
     @PostMapping("/save")

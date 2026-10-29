@@ -495,7 +495,7 @@ public class PrintServerService {
                     .replace("th:href=\"@{/favicon.svg}\"", "href=\"\"")
                     .replace("<link th:href=\"@{/css/bootstrap.min.css}\" rel=\"stylesheet\">",
                             "<style>" + inlineBootstrapCss + "</style>")
-                    .replaceAll("th:href=\"@\\{[^\\\"]*\\}\"", "href=\"#\"");
+                    .replaceAll("th:href=\"[^\"]*\"", "href=\"#\"");
 
             SpringTemplateEngine standaloneEngine = new SpringTemplateEngine();
             org.thymeleaf.templateresolver.StringTemplateResolver stringResolver =
@@ -514,6 +514,7 @@ public class PrintServerService {
             ctx.setVariable("batch", batch);
             ctx.setVariable("units", units);
             ctx.setVariable("qrCodes", qrCodes);
+            ctx.setVariable("manualMode", batch != null && batch.getBatchDate() == null);
             ctx.setVariable("companyName", companyName);
             ctx.setVariable("contactNumber", contactNumber);
             ctx.setVariable("registeredOfficeAddress", registeredOfficeAddress);
@@ -581,8 +582,8 @@ public class PrintServerService {
         String careAddrHtml = escapeHtml(defaultStr(customerCareAddress, ""));
         String phoneHtml = escapeHtml("Tel: " + defaultStr(contactNumber, ""));
         String batchCodeHtml = batch != null && batch.getBatchCode() != null ? escapeHtml(batch.getBatchCode()) : "";
-        String pkdHtml = batch != null && batch.getBatchDate() != null ? escapeHtml(batch.getBatchDate().toString()) : "";
-        String expHtml = batch != null && batch.getExpiryDate() != null ? escapeHtml(batch.getExpiryDate().toString()) : "";
+        String pkdHtml = batch != null && batch.getBatchDate() != null ? escapeHtml(batch.getBatchDate().toString()) : "____________";
+        String expHtml = batch != null && batch.getExpiryDate() != null ? escapeHtml(batch.getExpiryDate().toString()) : "____________";
         String netWtHtml = "";
         if (product != null && product.getNetWeight() != null) {
             netWtHtml = escapeHtml(product.getNetWeight().toString()
@@ -594,6 +595,11 @@ public class PrintServerService {
                 ? escapeHtml(product.getStorageInstructions()) : null;
 
         for (int i = 0; i < units.size(); i++) {
+            InventoryUnit unit = units.get(i);
+            String unitBatchCodeHtml = (unit != null && unit.getUuid() != null
+                    && (unit.getUuid().startsWith("M-") || (batch != null && batch.getBatchDate() == null)))
+                    ? escapeHtml(unit.getUuid())
+                    : batchCodeHtml;
             sb.append("<div class=\"label-item\">");
             sb.append("<div class=\"d-flex flex-column\" style=\"text-align: left; font-size: 14pt; line-height: 1.05;\">");
 
@@ -622,7 +628,7 @@ public class PrintServerService {
             // Batch & Product Details
             sb.append("<div class=\"row g-0 mb-0 border-top border-bottom\">");
             sb.append("<div class=\"col-6 pe-1\">");
-            sb.append("Batch No: <span class=\"fw-bold\">").append(batchCodeHtml).append("</span><br>");
+            sb.append("Batch No: <span class=\"fw-bold\">").append(unitBatchCodeHtml).append("</span><br>");
             sb.append("Pkd: <span class=\"fw-bold\" style=\"font-size: 10pt;\">").append(pkdHtml).append("</span><br>");
             sb.append("Exp: <span class=\"fw-bold text-uppercase\" style=\"font-size: 10pt;\">").append(expHtml).append("</span>");
             sb.append("</div>");
@@ -771,7 +777,7 @@ public class PrintServerService {
 
                             renderScaledLabelInBox(
                                     cs, fontRegular, fontBold,
-                                    batch, companyName, contactNumber, registeredOfficeAddress, customerCareAddress,
+                                    batch, units.get(idx), companyName, contactNumber, registeredOfficeAddress, customerCareAddress,
                                     showNutrition,
                                     cellX + safePad, cellBottomY + safePad,
                                     cellW - (2 * safePad), cellH - (2 * safePad));
@@ -792,7 +798,7 @@ public class PrintServerService {
                     try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
                         renderScaledLabelInBox(
                                 cs, fontRegular, fontBold,
-                                batch, companyName, contactNumber, registeredOfficeAddress, customerCareAddress,
+                                batch, units.get(i), companyName, contactNumber, registeredOfficeAddress, customerCareAddress,
                                 showNutrition,
                                 padPt, padPt,
                                 pageW - (2 * padPt), pageH - (2 * padPt));
@@ -821,6 +827,7 @@ public class PrintServerService {
             PDFont fontRegular,
             PDFont fontBold,
             HarvestBatch batch,
+            InventoryUnit unit,
             String companyName,
             String contactNumber,
             String registeredOfficeAddress,
@@ -872,7 +879,7 @@ public class PrintServerService {
         cs.saveGraphicsState();
         cs.transform(new Matrix(scale, 0, 0, scale, offsetX, offsetY));
         drawVirtualLabelContent(
-                cs, fontRegular, fontBold, batch, companyName, contactNumber,
+                cs, fontRegular, fontBold, batch, unit, companyName, contactNumber,
                 registeredOfficeAddress, customerCareAddress, showNutrition, virtualW, virtualH);
         cs.restoreGraphicsState();
     }
@@ -940,6 +947,7 @@ public class PrintServerService {
             PDFont fontRegular,
             PDFont fontBold,
             HarvestBatch batch,
+            InventoryUnit unit,
             String companyName,
             String contactNumber,
             String registeredOfficeAddress,
@@ -1039,11 +1047,17 @@ public class PrintServerService {
         // 3. Batch & Product Details (2 columns)
         float batchTopY = cursorY;
         float bLeftY = cursorY - 12f;
-        drawLeftText(cs, fontBold, 10f, "Batch No: " + sanitizeText(defaultStr(batch.getBatchCode(), "")), 2f, bLeftY);
+        String effectiveBatchCode = (unit != null && unit.getUuid() != null
+                && (unit.getUuid().startsWith("M-") || batch.getBatchDate() == null))
+                ? unit.getUuid()
+                : defaultStr(batch.getBatchCode(), "");
+        String pkdDisplay = batch.getBatchDate() != null ? batch.getBatchDate().toString() : "____________";
+        String expDisplay = batch.getExpiryDate() != null ? batch.getExpiryDate().toString() : "____________";
+        drawLeftText(cs, fontBold, 10f, "Batch No: " + sanitizeText(effectiveBatchCode), 2f, bLeftY);
         bLeftY -= 13f;
-        drawLeftText(cs, fontBold, 10f, "Pkd: " + (batch.getBatchDate() != null ? batch.getBatchDate().toString() : ""), 2f, bLeftY);
+        drawLeftText(cs, fontBold, 10f, "Pkd: " + pkdDisplay, 2f, bLeftY);
         bLeftY -= 13f;
-        drawLeftText(cs, fontBold, 10f, "Exp: " + (batch.getExpiryDate() != null ? batch.getExpiryDate().toString() : ""), 2f, bLeftY);
+        drawLeftText(cs, fontBold, 10f, "Exp: " + expDisplay, 2f, bLeftY);
         bLeftY -= 4f;
 
         float bRightY = cursorY - 12f;

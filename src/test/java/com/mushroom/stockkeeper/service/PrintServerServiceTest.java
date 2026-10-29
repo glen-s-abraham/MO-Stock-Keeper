@@ -226,4 +226,69 @@ class PrintServerServiceTest {
             assertEquals(2, doc.getNumberOfPages());
         }
     }
+
+    @Test
+    void generateBatchLabelPdf_ManualLabelsWithNullDates_ShouldRenderIndividualSequenceCodesAndWriteInPlaceholders() throws IOException {
+        HarvestBatch manualBatch = createSampleBatch(true);
+        manualBatch.setBatchCode("M-0001 to M-0003");
+        manualBatch.setBatchDate(null);
+        manualBatch.setExpiryDate(null);
+
+        List<InventoryUnit> manualUnits = new ArrayList<>();
+        for (int seq = 1; seq <= 3; seq++) {
+            InventoryUnit unit = new InventoryUnit();
+            unit.setId((long) seq);
+            unit.setUuid(String.format("M-%04d", seq));
+            unit.setBatch(manualBatch);
+            manualUnits.add(unit);
+        }
+
+        byte[] pdfBytes = printServerService.generateBatchLabelsPdf(
+                manualBatch, manualUnits, "THERMAL_CUSTOM", 75, 75,
+                "Marias Organics", "+91-9876543210", "12 Farm Road", "Care Center");
+
+        assertNotNull(pdfBytes);
+        assertTrue(pdfBytes.length > 0);
+
+        try (PDDocument doc = Loader.loadPDF(pdfBytes)) {
+            assertEquals(3, doc.getNumberOfPages());
+            String text = new PDFTextStripper().getText(doc);
+            String compact = text.replaceAll("\\s+", "");
+            assertTrue(compact.contains("M-0001"), "Expected M-0001 in PDF text: " + text);
+            assertTrue(compact.contains("M-0002"), "Expected M-0002 in PDF text: " + text);
+            assertTrue(compact.contains("M-0003"), "Expected M-0003 in PDF text: " + text);
+            assertTrue(compact.contains("Pkd:____________"), "Expected write-in Pkd placeholder in PDF text: " + text);
+            assertTrue(compact.contains("Exp:____________"), "Expected write-in Exp placeholder in PDF text: " + text);
+        }
+    }
+
+    @Test
+    void allocateManualLabelSequence_ShouldRememberAndIncrementSequenceContinuously() {
+        AtomicReference<String> storedVal = new AtomicReference<>("0");
+        when(appSettingRepository.findBySettingKey(SettingsService.KEY_MANUAL_LABEL_LAST_SEQUENCE))
+                .thenAnswer(inv -> Optional.of(new com.mushroom.stockkeeper.model.AppSetting(
+                        SettingsService.KEY_MANUAL_LABEL_LAST_SEQUENCE, storedVal.get())));
+        when(appSettingRepository.save(Mockito.any(com.mushroom.stockkeeper.model.AppSetting.class)))
+                .thenAnswer(inv -> {
+                    com.mushroom.stockkeeper.model.AppSetting saved = inv.getArgument(0);
+                    if (SettingsService.KEY_MANUAL_LABEL_LAST_SEQUENCE.equals(saved.getSettingKey())) {
+                        storedVal.set(saved.getSettingValue());
+                    }
+                    return saved;
+                });
+
+        com.mushroom.stockkeeper.dto.ManualLabelRange firstRun = settingsService.allocateManualLabelSequence(10);
+        assertEquals(1, firstRun.getStartSeq());
+        assertEquals(10, firstRun.getEndSeq());
+        assertEquals("M-0001", firstRun.getStartCode());
+        assertEquals("M-0010", firstRun.getEndCode());
+        assertEquals(10, settingsService.getManualLabelLastSequence());
+
+        com.mushroom.stockkeeper.dto.ManualLabelRange secondRun = settingsService.allocateManualLabelSequence(5);
+        assertEquals(11, secondRun.getStartSeq());
+        assertEquals(15, secondRun.getEndSeq());
+        assertEquals("M-0011", secondRun.getStartCode());
+        assertEquals("M-0015", secondRun.getEndCode());
+        assertEquals(15, settingsService.getManualLabelLastSequence());
+    }
 }

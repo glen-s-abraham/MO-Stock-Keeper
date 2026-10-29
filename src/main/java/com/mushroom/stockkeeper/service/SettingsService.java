@@ -1,9 +1,11 @@
 package com.mushroom.stockkeeper.service;
 
+import com.mushroom.stockkeeper.dto.ManualLabelRange;
 import com.mushroom.stockkeeper.model.AppSetting;
 import com.mushroom.stockkeeper.repository.AppSettingRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -30,6 +32,8 @@ public class SettingsService {
     public static final String KEY_PRINT_SERVER_URL = "print_server_url";
     public static final String KEY_CUSTOM_LABEL_WIDTH = "custom_label_width";
     public static final String KEY_CUSTOM_LABEL_HEIGHT = "custom_label_height";
+    public static final String KEY_MANUAL_LABEL_LAST_SEQUENCE = "manual_label_last_sequence";
+    public static final int MAX_MANUAL_LABELS_PER_RUN = 500;
 
     public SettingsService(AppSettingRepository appSettingRepository) {
         this.appSettingRepository = appSettingRepository;
@@ -123,6 +127,43 @@ public class SettingsService {
                     }
                 })
                 .orElse(150);
+    }
+
+    public synchronized int getManualLabelLastSequence() {
+        return appSettingRepository.findBySettingKey(KEY_MANUAL_LABEL_LAST_SEQUENCE)
+                .map(AppSetting::getSettingValue)
+                .map(val -> {
+                    try {
+                        int parsed = Integer.parseInt(val.trim());
+                        return Math.max(0, parsed);
+                    } catch (NumberFormatException e) {
+                        return 0;
+                    }
+                })
+                .orElse(0);
+    }
+
+    @Transactional
+    public synchronized void setManualLabelLastSequence(int lastSequence) {
+        if (lastSequence < 0) {
+            throw new IllegalArgumentException("Manual label sequence cannot be negative");
+        }
+        updateSetting(KEY_MANUAL_LABEL_LAST_SEQUENCE, String.valueOf(lastSequence));
+    }
+
+    @Transactional
+    public synchronized ManualLabelRange allocateManualLabelSequence(int quantity) {
+        if (quantity < 1) {
+            throw new IllegalArgumentException("Quantity must be at least 1");
+        }
+        if (quantity > MAX_MANUAL_LABELS_PER_RUN) {
+            throw new IllegalArgumentException("Quantity cannot exceed " + MAX_MANUAL_LABELS_PER_RUN + " stickers per print run");
+        }
+        int lastSeq = getManualLabelLastSequence();
+        int startSeq = lastSeq + 1;
+        int endSeq = lastSeq + quantity;
+        updateSetting(KEY_MANUAL_LABEL_LAST_SEQUENCE, String.valueOf(endSeq));
+        return new ManualLabelRange(startSeq, endSeq);
     }
 
     // Generic helper used internally or by other services if needed

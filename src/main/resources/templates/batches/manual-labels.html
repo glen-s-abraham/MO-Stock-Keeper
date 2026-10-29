@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+    layout:decorate="~{layout/base}">
+
+<head>
+    <title>Manual Label Printer</title>
+</head>
+
+<body>
+    <div layout:fragment="content">
+        <div class="row justify-content-center">
+            <div class="col-12 col-lg-10">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div class="d-flex align-items-center">
+                        <a th:href="@{/batches}" class="btn btn-outline-secondary btn-sm me-3"><i
+                                class="bi bi-arrow-left fs-5"></i></a>
+                        <div>
+                            <h2 class="mb-1">Manual Label Printer</h2>
+                            <p class="text-muted mb-0">Pre-print emergency stickers with sequential batch codes (<span class="font-monospace">M-XXXX</span>) and write-in date placeholders.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Flash Alerts -->
+                <div th:if="${success}" class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="bi bi-check-circle-fill me-2"></i><span th:text="${success}"></span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i><span th:text="${error}"></span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+
+                <!-- Sequence Status Banner -->
+                <div class="card border-success bg-success bg-opacity-10 shadow-sm mb-4">
+                    <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+                        <div>
+                            <span class="text-uppercase small fw-bold text-success d-block">Next Manual Batch Sequence</span>
+                            <div class="d-flex align-items-baseline gap-3 mt-1">
+                                <span class="fs-2 fw-bold font-monospace text-dark" id="nextCodeDisplay" th:text="${nextBatchCode}">M-0001</span>
+                                <span class="text-muted small">(Last printed sequence: <strong th:text="${lastSequence}">0</strong>)</span>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <span class="badge bg-white text-dark border px-3 py-2">
+                                <i class="bi bi-shield-check text-success me-1"></i> Pre-printing does not add live inventory stock
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <!-- Primary Card: Generate New Manual Sticker Set -->
+                    <div class="col-12 col-md-7">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-body p-4">
+                                <h5 class="card-title fw-bold mb-1">
+                                    <i class="bi bi-printer-fill text-success me-2"></i>Print New Manual Sticker Set
+                                </h5>
+                                <p class="text-muted small mb-4">Generates a new set of stickers starting from <strong class="font-monospace" th:text="${nextBatchCode}">M-0001</strong> and saves the new sequence position.</p>
+
+                                <form th:action="@{/batches/manual-labels/generate}" method="post" id="generateManualForm">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold" for="generateProduct">Product</label>
+                                        <select class="form-select searchable" id="generateProduct" name="productId" required>
+                                            <option value="">Choose product...</option>
+                                            <option th:each="p : ${products}" th:value="${p.id}" th:text="${p.name}"></option>
+                                        </select>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold" for="generateQuantity">Number of Manual Stickers Required</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text"><i class="bi bi-tags"></i></span>
+                                            <input type="number" class="form-control form-control-lg" id="generateQuantity"
+                                                name="quantity" min="1" max="500" value="25" required>
+                                        </div>
+                                        <div class="form-text mt-2">
+                                            Will generate stickers: <strong class="font-monospace text-dark" id="rangePreviewText" th:text="${nextBatchCode}">M-0001</strong>
+                                        </div>
+                                    </div>
+
+                                    <div class="alert alert-light border small mb-4">
+                                        <i class="bi bi-pencil-square me-1 text-secondary"></i>
+                                        <strong>Sticker Details:</strong> Same layout as online batch labels, with individual <span class="font-monospace">Batch No: M-XXXX</span> and blank write-in lines for <strong>Pkd</strong> and <strong>Exp</strong> dates.
+                                    </div>
+
+                                    <div class="d-grid">
+                                        <button type="submit" class="btn btn-success btn-lg shadow-sm">
+                                            <i class="bi bi-printer me-2"></i>Generate &amp; Open Print View
+                                        </button>
+                                    </div>
+                                    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Secondary Column: Reprint Range & Adjust Sequence -->
+                    <div class="col-12 col-md-5 d-flex flex-column gap-4">
+                        <!-- Reprint Specific Range (No sequence increment) -->
+                        <div class="card shadow-sm">
+                            <div class="card-body p-4">
+                                <h6 class="card-title fw-bold mb-1">
+                                    <i class="bi bi-arrow-repeat text-primary me-2"></i>Reprint Existing Sequence Range
+                                </h6>
+                                <p class="text-muted small mb-3">Reprint damaged or jammed stickers without advancing the remembered sequence counter.</p>
+
+                                <form th:action="@{/batches/manual-labels/print}" method="get">
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-semibold" for="reprintProduct">Product</label>
+                                        <select class="form-select searchable" id="reprintProduct" name="productId" required>
+                                            <option value="">Choose product...</option>
+                                            <option th:each="p : ${products}" th:value="${p.id}" th:text="${p.name}"></option>
+                                        </select>
+                                    </div>
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-6">
+                                            <label class="form-label small fw-semibold" for="seqStart">Start Seq #</label>
+                                            <input type="number" class="form-control" id="seqStart" name="seqStart"
+                                                min="1" th:value="${lastSequence > 0 ? lastSequence : 1}" required>
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label small fw-semibold" for="seqEnd">End Seq #</label>
+                                            <input type="number" class="form-control" id="seqEnd" name="seqEnd"
+                                                min="1" th:value="${lastSequence > 0 ? lastSequence : 1}" required>
+                                        </div>
+                                    </div>
+                                    <div class="d-grid">
+                                        <button type="submit" class="btn btn-outline-primary">
+                                            <i class="bi bi-printer me-1"></i>Reprint Selected Range
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Adjust / Reset Sequence Counter -->
+                        <div class="card shadow-sm">
+                            <div class="card-body p-4">
+                                <h6 class="card-title fw-bold mb-1">
+                                    <i class="bi bi-sliders text-secondary me-2"></i>Adjust Sequence Counter
+                                </h6>
+                                <p class="text-muted small mb-3">Set the last used sequence number (set to <span class="font-monospace">0</span> to restart from <span class="font-monospace">M-0001</span>).</p>
+
+                                <form th:action="@{/batches/manual-labels/sequence}" method="post">
+                                    <div class="input-group mb-2">
+                                        <span class="input-group-text small">Last Seq #</span>
+                                        <input type="number" class="form-control" name="lastSequence" min="0"
+                                            th:value="${lastSequence}" required>
+                                        <button type="submit" class="btn btn-outline-secondary">Update</button>
+                                    </div>
+                                    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <th:block layout:fragment="scripts">
+        <script th:inline="javascript">
+            document.addEventListener('DOMContentLoaded', function () {
+                const nextSeq = /*[[${nextSequence != null ? nextSequence : 1}]]*/ 1;
+                const qtyInput = document.getElementById('generateQuantity');
+                const previewEl = document.getElementById('rangePreviewText');
+
+                function formatCode(seq) {
+                    return 'M-' + String(seq).padStart(4, '0');
+                }
+
+                function updateRangePreview() {
+                    if (!qtyInput || !previewEl) return;
+                    const qty = parseInt(qtyInput.value, 10);
+                    if (isNaN(qty) || qty < 1) {
+                        previewEl.textContent = formatCode(nextSeq);
+                        return;
+                    }
+                    const endSeq = nextSeq + qty - 1;
+                    if (qty === 1) {
+                        previewEl.textContent = formatCode(nextSeq);
+                    } else {
+                        previewEl.textContent = formatCode(nextSeq) + ' to ' + formatCode(endSeq) + ' (' + qty + ' stickers)';
+                    }
+                }
+
+                if (qtyInput) {
+                    qtyInput.addEventListener('input', updateRangePreview);
+                    updateRangePreview();
+                }
+            });
+        </script>
+    </th:block>
+</body>
+
+</html>
