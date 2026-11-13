@@ -58,25 +58,26 @@
             </th:block>
         </div>
 
-        <div class="row g-3">
-            <div class="col-12 col-md-6 col-lg-4" th:each="b : ${batches}">
-                <a th:href="@{/batches/{id}(id=${b.id})}" class="text-decoration-none">
+        <div class="row g-3" id="batchesGridContainer">
+            <div class="col-12 col-md-6 col-lg-4 batch-card-col" th:each="b : ${batches}"
+                 th:attr="data-batch-id=${b.id},data-batch-code=${b.batchCode},data-product-id=${b.product.id},data-product-name=${b.product.name},data-batch-date=${b.batchDate},data-expiry-date=${b.expiryDate},data-total-units=${b.totalUnits},data-default-expiry=${b.product.defaultExpiryDays}">
+                <a th:href="@{/batches/{id}(id=${b.id})}" class="text-decoration-none batch-card-link">
                     <div class="card h-100 border-hover-primary shadow-sm card-hover-effect">
                         <div class="card-body">
                             <div class="d-flex justify-content-between mb-3">
                                 <div class="w-100">
                                     <div class="d-flex justify-content-between align-items-center mb-1">
-                                        <h5 class="card-title fw-bold text-dark mb-0" th:text="${b.product.name}">
+                                        <h5 class="card-title fw-bold text-dark mb-0 batch-card-product" th:text="${b.product.name}">
                                             Product Name</h5>
                                         <span
                                             th:if="${b.expiryDate != null and b.expiryDate.isBefore(T(java.time.LocalDate).now())}"
                                             class="badge bg-danger ms-2">EXPIRED</span>
                                     </div>
                                     <div class="d-flex justify-content-between align-items-center">
-                                        <span class="badge bg-light text-secondary border font-monospace"
+                                        <span class="badge bg-light text-secondary border font-monospace batch-card-code"
                                             th:text="${b.batchCode}">CODE</span>
                                         <small class="text-muted"><i class="bi bi-calendar3 me-1"></i> <span
-                                                th:text="${b.batchDate}">Date</span></small>
+                                                class="batch-card-date" th:text="${b.batchDate}">Date</span></small>
                                     </div>
                                 </div>
                             </div>
@@ -85,11 +86,11 @@
 
                             <div class="d-flex justify-content-between align-items-center mt-2">
                                 <span class="badge bg-success bg-opacity-10 text-success border border-success px-3">
-                                    <i class="bi bi-box-seam me-1"></i> <span th:text="${b.totalUnits}">0</span> Units
+                                    <i class="bi bi-box-seam me-1"></i> <span class="batch-card-units" th:text="${b.totalUnits}">0</span> Units
                                 </span>
                                 <small class="text-muted d-flex align-items-center" th:if="${b.expiryDate}">
                                     <i class="bi bi-hourglass-split me-1"></i> Exp: <span
-                                        th:text="${b.expiryDate}">Date</span>
+                                        class="batch-card-expiry" th:text="${b.expiryDate}">Date</span>
                                 </small>
                             </div>
                         </div>
@@ -98,7 +99,7 @@
             </div>
 
             <!-- Empty State -->
-            <div class="col-12" th:if="${#lists.isEmpty(batches)}">
+            <div class="col-12" id="batchesEmptyState" th:if="${#lists.isEmpty(batches)}">
                 <div class="text-center py-5 text-muted">
                     <i class="bi bi-clipboard-x fs-1 d-block mb-3 opacity-25"></i>
                     No batches found matching criteria.
@@ -108,6 +109,141 @@
 
         <!-- Pagination Controls -->
         <div th:replace="~{fragments/pagination :: controls(page=${batchesPage}, linkPrefix='/batches')}"></div>
+
+        <!-- Offline & Pending Batch Detail / Operations Modal -->
+        <div class="modal fade" id="offlineBatchManageModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header bg-dark text-white">
+                        <div>
+                            <div class="d-flex align-items-center gap-2">
+                                <h5 class="modal-title mb-0">Batch: <span id="obmBatchCode" class="font-monospace text-warning"></span></h5>
+                                <span id="obmSyncBadge" class="badge bg-warning text-dark">Pending Sync</span>
+                            </div>
+                            <small class="text-white-50">Production details, label printing, and inventory unit management</small>
+                        </div>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- Top Action Toolbar (Matches Online Batch Detail View) -->
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 pb-3 border-bottom">
+                            <div class="d-flex flex-wrap gap-2">
+                                <button type="button" class="btn btn-outline-primary btn-sm fw-bold" onclick="window.MoStockOfflineSync.toggleOfflineBatchEdit()">
+                                    <i class="bi bi-pencil me-1"></i>Edit Harvest Date
+                                </button>
+                                <button type="button" class="btn btn-outline-danger btn-sm fw-bold" onclick="window.MoStockOfflineSync.deleteActiveOfflineBatch()">
+                                    <i class="bi bi-trash me-1"></i>Delete Batch
+                                </button>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="window.MoStockOfflineSync.toggleOfflinePrintRange()">
+                                    <i class="bi bi-collection me-1"></i>Print Range
+                                </button>
+                                <button type="button" class="btn btn-warning btn-sm text-dark fw-bold" onclick="window.MoStockOfflineSync.printActiveOfflineBatchAll()">
+                                    <i class="bi bi-printer me-1"></i>Print All
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Inline Collapsible: Edit Harvest Date -->
+                        <div id="obmEditSection" class="card border-primary mb-3 d-none">
+                            <div class="card-body py-2">
+                                <div class="row align-items-end g-2">
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-bold mb-1">New Harvest Date</label>
+                                        <input type="date" id="obmEditDateInput" class="form-control form-control-sm">
+                                        <div class="form-text small">Expiry date will be recalculated automatically.</div>
+                                    </div>
+                                    <div class="col-md-6 text-md-end">
+                                        <button type="button" class="btn btn-sm btn-secondary me-1" onclick="window.MoStockOfflineSync.toggleOfflineBatchEdit()">Cancel</button>
+                                        <button type="button" class="btn btn-sm btn-primary" onclick="window.MoStockOfflineSync.saveOfflineBatchEdit()">
+                                            <i class="bi bi-check-lg me-1"></i>Save Changes
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Inline Collapsible: Print Label Range -->
+                        <div id="obmRangeSection" class="card border-warning mb-3 d-none">
+                            <div class="card-body py-2">
+                                <div class="row align-items-end g-2">
+                                    <div class="col-sm-4">
+                                        <label class="form-label small fw-bold mb-1">From Sequence #</label>
+                                        <input type="number" id="obmRangeStart" class="form-control form-control-sm" min="1" value="1">
+                                    </div>
+                                    <div class="col-sm-4">
+                                        <label class="form-label small fw-bold mb-1">To Sequence #</label>
+                                        <input type="number" id="obmRangeEnd" class="form-control form-control-sm" min="1" value="10">
+                                    </div>
+                                    <div class="col-sm-4 text-sm-end">
+                                        <button type="button" class="btn btn-sm btn-secondary me-1" onclick="window.MoStockOfflineSync.toggleOfflinePrintRange()">Cancel</button>
+                                        <button type="button" class="btn btn-sm btn-warning fw-bold" onclick="window.MoStockOfflineSync.printActiveOfflineBatchRange()">
+                                            <i class="bi bi-printer me-1"></i>Print Range
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Summary Info Cards -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-6 col-md-3">
+                                <div class="card h-100 bg-light">
+                                    <div class="card-body py-2">
+                                        <small class="text-muted text-uppercase d-block">Product</small>
+                                        <strong id="obmProductName" class="text-dark">—</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="card h-100 bg-light">
+                                    <div class="card-body py-2">
+                                        <small class="text-muted text-uppercase d-block">Harvest Date</small>
+                                        <strong id="obmBatchDate" class="text-dark">—</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="card h-100 bg-light">
+                                    <div class="card-body py-2">
+                                        <small class="text-muted text-uppercase d-block">Total Units</small>
+                                        <strong id="obmTotalUnits" class="text-primary">—</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="card h-100 bg-light">
+                                    <div class="card-body py-2">
+                                        <small class="text-muted text-uppercase d-block">Expiry Date</small>
+                                        <strong id="obmExpiryDate" class="text-warning">—</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Inventory Units Table -->
+                        <div class="card border">
+                            <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                                <h6 class="mb-0 fw-bold">Inventory Units</h6>
+                                <span id="obmUnitsCountBadge" class="badge bg-secondary">0 items</span>
+                            </div>
+                            <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
+                                <table class="table table-sm table-hover align-middle mb-0">
+                                    <thead class="table-dark sticky-top">
+                                        <tr>
+                                            <th class="ps-3">UUID</th>
+                                            <th class="text-end pe-3">Status &amp; Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="obmUnitsTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
     </div>
 </body>

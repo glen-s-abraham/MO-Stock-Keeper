@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Offline Print Labels - MO Stock Keeper</title>
+    <link rel="icon" type="image/svg+xml" th:href="@{/favicon.svg}">
+    <link th:href="@{/css/bootstrap.min.css}" rel="stylesheet">
+    <link th:href="@{/css/bootstrap-icons.min.css}" rel="stylesheet">
+    <style>
+        @media print {
+            @page {
+                size: auto;
+                margin: 0;
+            }
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .page-break {
+                page-break-after: always;
+            }
+        }
+
+        .label-grid {
+            display: grid;
+            gap: 0;
+            padding: 0;
+        }
+
+        .label-item {
+            border: 1px dashed #ccc;
+            padding: 1px;
+            text-align: center;
+            page-break-inside: avoid;
+            background: white;
+            overflow: hidden;
+        }
+
+        .sheet-A4_24 .label-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .sheet-A4_40 .label-grid {
+            grid-template-columns: repeat(4, 1fr);
+        }
+
+        .sheet-THERMAL_4x6 {
+            width: 100mm;
+        }
+
+        .sheet-THERMAL_4x6 .label-grid {
+            grid-template-columns: 1fr;
+            gap: 0;
+            padding: 0;
+        }
+
+        .sheet-THERMAL_4x6 .label-item {
+            width: 100mm;
+            height: 150mm;
+            border: none;
+            padding: 5mm;
+            page-break-after: always;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .sheet-THERMAL_2x1 {
+            width: 50mm;
+        }
+
+        .sheet-THERMAL_2x1 .label-grid {
+            grid-template-columns: 1fr;
+            gap: 0;
+            padding: 0;
+        }
+
+        .sheet-THERMAL_2x1 .label-item {
+            width: 50mm;
+            height: 25mm;
+            border: none;
+            padding: 1mm;
+            page-break-after: always;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .sheet-THERMAL_CUSTOM .label-grid {
+            grid-template-columns: 1fr;
+            gap: 0;
+            padding: 0;
+        }
+
+        .sheet-THERMAL_CUSTOM .label-item {
+            border: none;
+            padding: 1mm;
+            page-break-after: always;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+    </style>
+    <style id="dynamicCustomThermalStyle"></style>
+</head>
+<body id="offlinePrintBody" class="sheet-A4_40">
+    <div class="container-fluid">
+        <div class="no-print d-flex flex-wrap justify-content-between align-items-center bg-light p-3 border-bottom mb-2 gap-2">
+            <div>
+                <span class="badge bg-warning text-dark mb-1">
+                    <i class="bi bi-wifi-off me-1"></i>Offline Print Sheet (Queued for Server Sync)
+                </span>
+                <h4 class="mb-0">Batch: <span id="headerBatchCode">—</span></h4>
+                <small class="text-muted" id="headerProductName">—</small>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" onclick="window.print()" class="btn btn-primary">
+                    <i class="bi bi-printer-fill me-2"></i>Print Labels
+                </button>
+                <a id="offlineBackBtn" href="/batches" class="btn btn-outline-secondary">Back</a>
+            </div>
+        </div>
+
+        <div id="offlineLabelGrid" class="label-grid"></div>
+    </div>
+
+    <script>
+        function escapeHtml(val) {
+            if (val === null || val === undefined) return '';
+            return String(val)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function autoFitLabels() {
+            const labels = document.querySelectorAll('.label-item');
+            labels.forEach(label => {
+                const content = label.querySelector('div');
+                if (content) {
+                    content.style.transform = 'none';
+                    content.style.marginLeft = '0';
+                    content.style.marginTop = '0';
+
+                    const style = window.getComputedStyle(label);
+                    const paddingVertical = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+                    const paddingHorizontal = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+
+                    label.style.justifyContent = 'flex-start';
+                    label.style.alignItems = 'flex-start';
+
+                    const availHeight = label.clientHeight - paddingVertical;
+                    const availWidth = label.clientWidth - paddingHorizontal;
+                    if (availHeight <= 0 || availWidth <= 0) return;
+
+                    const targetRatio = availWidth / availHeight;
+                    let minW = 10;
+                    let maxW = 4000;
+                    let bestW = availWidth;
+
+                    for (let i = 0; i < 20; i++) {
+                        let midW = (minW + maxW) / 2;
+                        content.style.width = midW + 'px';
+                        let currentW = content.scrollWidth;
+                        let currentH = content.scrollHeight;
+                        let ratio = currentW / currentH;
+                        if (ratio > targetRatio) {
+                            maxW = midW;
+                        } else {
+                            minW = midW;
+                        }
+                        bestW = midW;
+                    }
+
+                    content.style.width = bestW + 'px';
+                    const finalW = content.scrollWidth;
+                    const finalH = content.scrollHeight;
+                    const scaleW = availWidth / finalW;
+                    const scaleH = availHeight / finalH;
+                    const scale = Math.min(scaleW, scaleH) * 0.95;
+
+                    content.style.transformOrigin = 'top left';
+                    content.style.transform = `scale(${scale})`;
+
+                    const scaledW = finalW * scale;
+                    const scaledH = finalH * scale;
+                    content.style.marginLeft = ((availWidth - scaledW) / 2) + 'px';
+                    content.style.marginTop = ((availHeight - scaledH) / 2) + 'px';
+                }
+            });
+        }
+
+        function renderOfflinePrintJob() {
+            const raw = localStorage.getItem('mo_stock_latest_offline_print_job');
+            const grid = document.getElementById('offlineLabelGrid');
+            if (!raw || !grid) {
+                grid.innerHTML = '<div class="alert alert-warning m-3">No offline print job found. Create a batch or manual label run first.</div>';
+                return;
+            }
+
+            const job = JSON.parse(raw);
+            const product = job.product || {};
+            const settings = job.settings || {};
+            const sheetSize = settings.label_sheet_size || 'A4_40';
+            const customW = parseInt(settings.custom_label_width || '100', 10) || 100;
+            const customH = parseInt(settings.custom_label_height || '150', 10) || 150;
+
+            document.getElementById('offlinePrintBody').className = 'sheet-' + sheetSize;
+            document.getElementById('headerBatchCode').textContent = job.batchCode || '';
+            document.getElementById('headerProductName').textContent = product.name || '';
+            if (job.backUrl) {
+                document.getElementById('offlineBackBtn').setAttribute('href', job.backUrl);
+            }
+
+            if (sheetSize === 'THERMAL_CUSTOM') {
+                document.getElementById('dynamicCustomThermalStyle').textContent = `
+                    @page { size: ${customW}mm ${customH}mm; margin: 0; }
+                    .sheet-THERMAL_CUSTOM { width: ${customW}mm; }
+                    .sheet-THERMAL_CUSTOM .label-item { width: ${customW}mm; height: ${customH}mm; }
+                `;
+            }
+
+            const showNutrition = Boolean(
+                product.hasNutritionValues &&
+                ((sheetSize === 'THERMAL_CUSTOM' && customW >= 75 && customH >= 75) || sheetSize === 'THERMAL_4x6')
+            );
+
+            let nutritionHtml = '';
+            if (showNutrition && Array.isArray(product.nutritionLineItems) && product.nutritionLineItems.length > 0) {
+                const baseUnit = escapeHtml((product.nutritionBaseUnitValue || '100') + (product.nutritionBaseUnitType || 'g'));
+                const rows = product.nutritionLineItems.map(item => `
+                    <tr>
+                        <td class="p-1 m-0" style="width: 60%; border-top: none;">${escapeHtml(item.componentName)}</td>
+                        <td class="p-1 m-0 text-end" style="width: 40%; border-top: none;">${escapeHtml(item.amount)}${escapeHtml(item.measurementUnit)}</td>
+                    </tr>
+                `).join('');
+                nutritionHtml = `
+                    <div class="mt-1 w-100">
+                        <table class="table table-sm table-bordered nutrition-table mb-0 w-100" style="font-size: 11pt; border-color: #000;">
+                            <thead>
+                                <tr>
+                                    <th colspan="2" class="text-center p-1 bg-light m-0 border-bottom-0">NUTRITIONAL INFORMATION (Approx. per ${baseUnit})</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
+                `;
+            }
+
+            const storageHtml = product.storageInstructions
+                ? `<div class="border border-dark p-2 mt-1 text-center w-100" style="font-size: 11pt; border-style: dashed !important; border-width: 2px !important; border-radius: 2px; overflow-wrap: break-word; word-wrap: break-word; box-sizing: border-box;">${escapeHtml(product.storageInstructions)}</div>`
+                : '';
+
+            const companyName = escapeHtml(settings.company_name || 'Mushroom Operations');
+            const regOffice = escapeHtml(settings.company_registered_office || '');
+            const custCare = escapeHtml(settings.company_customer_care || '');
+            const phone = escapeHtml(settings.company_phone || '');
+            const netWt = product.netWeight ? escapeHtml(product.netWeight + (product.netWeightUom || '')) : '';
+            const mrpHtml = product.mrp ? `MRP: ₹${escapeHtml(product.mrp)} (Incl. taxes)` : '';
+            const fssaiHtml = product.fssaiLicenseNumber
+                ? `<div class="fw-bold" style="font-size: 9pt;">FSSAI Lic No: ${escapeHtml(product.fssaiLicenseNumber)}</div>`
+                : '';
+
+            const codes = Array.isArray(job.unitCodes) ? job.unitCodes : [];
+            const labelsHtml = codes.map(code => {
+                const displayBatch = job.manualMode ? escapeHtml(code) : escapeHtml(job.batchCode);
+                const pkdDisplay = job.manualMode || !job.batchDate ? '____________' : escapeHtml(job.batchDate);
+                const expDisplay = job.manualMode || !job.expiryDate ? '____________' : escapeHtml(job.expiryDate);
+                return `
+                    <div class="label-item">
+                        <div class="d-flex flex-column" style="text-align: left; font-size: 14pt; line-height: 1.05;">
+                            <div class="d-flex justify-content-between align-items-start w-100 mb-0">
+                                <div class="border border-success d-flex justify-content-center align-items-center" style="width: 10mm; height: 10mm; min-width: 10mm; margin: 1.5mm 1.5mm 4mm 1.5mm; border-width: 2px !important; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+                                    <div class="bg-success rounded-circle" style="width: 5mm; height: 5mm; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></div>
+                                </div>
+                                <div class="text-center flex-grow-1 px-1">
+                                    <div class="fw-bold" style="font-size: 13pt;">${escapeHtml(product.name)}</div>
+                                    ${fssaiHtml}
+                                </div>
+                            </div>
+                            <div class="row g-0 mb-0 border-top" style="font-size: 9pt;">
+                                <div class="col-6 pe-1">
+                                    <strong>GROWN &amp; PACKED BY:</strong><br>
+                                    <span>${companyName}</span><br>
+                                    <span style="font-size: 8pt;">${regOffice}</span>
+                                </div>
+                                <div class="col-6 ps-1 border-start">
+                                    <strong>CUSTOMER CARE:</strong><br>
+                                    <span style="font-size: 8pt;">${custCare}</span><br>
+                                    <span class="fw-bold" style="font-size: 10pt;">Tel: ${phone}</span>
+                                </div>
+                            </div>
+                            <div class="row g-0 mb-0 border-top border-bottom">
+                                <div class="col-6 pe-1">
+                                    Batch No: <span class="fw-bold">${displayBatch}</span><br>
+                                    Pkd: <span class="fw-bold" style="font-size: 10pt;">${pkdDisplay}</span><br>
+                                    Exp: <span class="fw-bold text-uppercase" style="font-size: 10pt;">${expDisplay}</span>
+                                </div>
+                                <div class="col-6 border-start ps-1">
+                                    Net Wt: <span class="fw-bold">${netWt}</span><br>
+                                    <span>${mrpHtml}</span>
+                                </div>
+                            </div>
+                            ${nutritionHtml}
+                            ${storageHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            grid.innerHTML = labelsHtml;
+            setTimeout(autoFitLabels, 50);
+        }
+
+        document.addEventListener('DOMContentLoaded', renderOfflinePrintJob);
+        window.addEventListener('load', autoFitLabels);
+    </script>
+</body>
+</html>

@@ -7,6 +7,8 @@
     <title layout:title-pattern="$CONTENT_TITLE - MO Stock Keeper">MO Stock Keeper</title>
     <link rel="icon" type="image/svg+xml" th:href="@{/favicon.svg}">
     <link rel="shortcut icon" th:href="@{/favicon.svg}">
+    <link rel="manifest" th:href="@{/manifest.json}">
+    <meta name="theme-color" content="#198754">
 
     <!-- Google Fonts: Outfit (Premium, Modern) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -39,10 +41,17 @@
         .select2-container--bootstrap-5 .select2-selection {
             border-color: #dee2e6;
         }
+
+        /* Hide online-only navigation and dashboard items when in Offline Mode */
+        body.is-offline .online-only-feature {
+            display: none !important;
+        }
     </style>
 
     <!-- Custom JS -->
     <script th:src="@{/js/scripts.js}"></script>
+    <!-- Offline-First PWA & Outbox Sync Engine -->
+    <script th:src="@{/js/offline-sync.js}"></script>
     
     <!-- Chart.js (CDN) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -89,13 +98,13 @@
                                     <i class="bi bi-printer me-2 text-primary"></i>Manual Labels
                                 </a>
                             </li>
-                            <li>
+                            <li class="online-only-feature">
                                 <a class="dropdown-item" th:href="@{/products}">
                                     <i class="bi bi-tags me-2 text-info"></i>Products
                                 </a>
                             </li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
+                            <li class="online-only-feature"><hr class="dropdown-divider"></li>
+                            <li class="online-only-feature">
                                 <a class="dropdown-item" th:href="@{/dashboard/harvest}">
                                     <i class="bi bi-graph-up-arrow me-2 text-success"></i>Harvest Dashboard
                                 </a>
@@ -110,8 +119,8 @@
                         </a>
                     </li>
 
-                    <!-- 4. Sales & Billing Dropdown -->
-                    <li class="nav-item dropdown">
+                    <!-- 4. Sales & Billing Dropdown (Online Only) -->
+                    <li class="nav-item dropdown online-only-feature">
                         <a class="nav-link dropdown-toggle" href="#" id="navSalesDropdown" role="button"
                            data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-cart3 me-1"></i>Sales &amp; Billing
@@ -153,8 +162,16 @@
                         </a>
                     </li>
                 </ul>
-                <div class="d-flex align-items-center">
-                    <span class="text-white me-3 small" th:if="${#authentication.principal != 'anonymousUser'}">
+                <div class="d-flex align-items-center gap-2">
+                    <!-- Offline/Online PWA Status & Manual Sync Trigger -->
+                    <span id="pwaConnectionBadge" class="badge bg-light text-success border px-2 py-1" title="Offline-First Sync Status">
+                        <i class="bi bi-cloud-check me-1"></i>Online
+                    </span>
+                    <button id="pwaSyncNowBtn" type="button" class="btn btn-sm btn-warning d-none"
+                            onclick="window.MoStockOfflineSync && window.MoStockOfflineSync.syncNow()">
+                        <i class="bi bi-arrow-repeat me-1"></i>Sync Now
+                    </button>
+                    <span class="text-white me-2 small" th:if="${#authentication.principal != 'anonymousUser'}">
                         <i class="bi bi-person-circle me-1"></i><span th:text="${#authentication.name}">User</span>
                     </span>
                     <form th:action="@{/logout}" method="post" th:if="${#authentication.principal != 'anonymousUser'}">
@@ -170,28 +187,32 @@
         <!-- Content goes here -->
     </div>
 
-    <!-- Bottom Navigation (Mobile Only - Generic Placeholder) -->
+    <!-- Bottom Navigation (Mobile Only) -->
     <div class="mobile-nav-bottom d-lg-none d-flex justify-content-around py-2">
         <a th:href="@{/dashboard}" class="text-secondary text-center text-decoration-none">
             <i class="bi bi-speedometer2 nav-icon"></i>
             <small class="d-block" style="font-size: 0.7rem;">Home</small>
         </a>
-        <a th:href="@{/batches/create}" class="text-secondary text-center text-decoration-none">
+        <a th:href="@{/batches}" class="text-secondary text-center text-decoration-none">
             <i class="bi bi-box-seam nav-icon"></i>
-            <small class="d-block" style="font-size: 0.7rem;">Pack</small>
+            <small class="d-block" style="font-size: 0.7rem;">Batches</small>
         </a>
-        <a th:href="@{/scan}" class="text-center text-decoration-none">
+        <a th:href="@{/procurement}" class="text-secondary text-center text-decoration-none">
+            <i class="bi bi-calendar2-range nav-icon"></i>
+            <small class="d-block" style="font-size: 0.7rem;">ARPS</small>
+        </a>
+        <a th:href="@{/scan}" class="text-center text-decoration-none online-only-feature">
             <div class="scan-btn shadow">
                 <i class="bi bi-qr-code-scan fs-4"></i>
             </div>
         </a>
-        <a th:href="@{/sales}" class="text-secondary text-center text-decoration-none">
+        <a th:href="@{/sales}" class="text-secondary text-center text-decoration-none online-only-feature">
             <i class="bi bi-cart3 nav-icon"></i>
             <small class="d-block" style="font-size: 0.7rem;">Sale</small>
         </a>
         <a th:href="@{/admin/settings}" class="text-secondary text-center text-decoration-none">
             <i class="bi bi-gear nav-icon"></i>
-            <small class="d-block" style="font-size: 0.7rem;">More</small>
+            <small class="d-block" style="font-size: 0.7rem;">Settings</small>
         </a>
     </div>
 

@@ -68,7 +68,7 @@ public class HarvestBatchController {
                                                                // filtering
             Model model) {
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "batchDate"));
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "batchDate", "createdAt", "id"));
 
         Specification<HarvestBatch> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -133,6 +133,11 @@ public class HarvestBatchController {
     public String createForm(Model model) {
         model.addAttribute("products", productRepository.findAll());
         return "batches/create";
+    }
+
+    @GetMapping("/offline-print")
+    public String offlinePrintView() {
+        return "batches/offline-print";
     }
 
     @GetMapping("/manual-labels")

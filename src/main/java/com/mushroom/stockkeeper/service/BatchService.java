@@ -29,6 +29,11 @@ public class BatchService {
 
     @Transactional
     public HarvestBatch createBatch(Product product, int quantity, LocalDate batchDate) {
+        return createBatch(product, quantity, batchDate, null);
+    }
+
+    @Transactional
+    public HarvestBatch createBatch(Product product, int quantity, LocalDate batchDate, String customBatchCode) {
         if (quantity <= 0) {
             throw new IllegalArgumentException("Quantity must be positive");
         }
@@ -52,12 +57,15 @@ public class BatchService {
             batch.setExpiryDate(batch.getBatchDate().plusDays(product.getDefaultExpiryDays()));
         }
 
-        // Generate Batch Code: B-YYYYMMDD-TIME
-        // e.g., B-20231222-1703239999
-        // This avoids race conditions with count() and unique constraint violations
-        String dateStr = batch.getBatchDate().format(DateTimeFormatter.BASIC_ISO_DATE);
-        String uniqueSuffix = String.valueOf(System.currentTimeMillis()).substring(6); // shorter suffix
-        String batchCode = "B-" + dateStr + "-" + uniqueSuffix;
+        // Generate Batch Code: B-YYYYMMDD-TIME (or preserve offline-generated batchCode)
+        String batchCode;
+        if (customBatchCode != null && !customBatchCode.trim().isEmpty()) {
+            batchCode = customBatchCode.trim();
+        } else {
+            String dateStr = batch.getBatchDate().format(DateTimeFormatter.BASIC_ISO_DATE);
+            String uniqueSuffix = String.valueOf(System.currentTimeMillis()).substring(6); // shorter suffix
+            batchCode = "B-" + dateStr + "-" + uniqueSuffix;
+        }
         batch.setBatchCode(batchCode);
 
         HarvestBatch savedBatch = batchRepository.save(batch);
