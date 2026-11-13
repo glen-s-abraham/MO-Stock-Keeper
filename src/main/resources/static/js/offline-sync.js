@@ -149,32 +149,29 @@
         }
         isWarmingPages = true;
         try {
-            // Save current live DOM page first
-            if (document.documentElement && document.documentElement.outerHTML) {
-                await savePageHtmlLocal(window.location.pathname, '<!DOCTYPE html>\n' + document.documentElement.outerHTML);
-            }
-
             if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
                 navigator.serviceWorker.controller.postMessage({ type: 'WARM_CACHE' });
             }
 
             const swCache = window.caches ? await window.caches.open(SW_CACHE_NAME).catch(() => null) : null;
 
-            for (const pageUrl of OFFLINE_APP_PAGES) {
-                try {
-                    const resp = await fetch(pageUrl, { credentials: 'same-origin', cache: 'no-cache' });
-                    if (resp && resp.status === 200 && !resp.redirected && !(resp.url || '').includes('/login')) {
-                        if (swCache) {
-                            await swCache.put(pageUrl, resp.clone()).catch(() => {});
-                            if (pageUrl === '/dashboard') {
-                                await swCache.put('/', resp.clone()).catch(() => {});
+            await Promise.allSettled(
+                OFFLINE_APP_PAGES.map(async (pageUrl) => {
+                    try {
+                        const resp = await fetch(pageUrl, { credentials: 'same-origin', cache: 'no-cache' });
+                        if (resp && resp.status === 200 && !resp.redirected && !(resp.url || '').includes('/login')) {
+                            if (swCache) {
+                                await swCache.put(pageUrl, resp.clone()).catch(() => {});
+                                if (pageUrl === '/dashboard') {
+                                    await swCache.put('/', resp.clone()).catch(() => {});
+                                }
                             }
+                            const html = await resp.text();
+                            await savePageHtmlLocal(pageUrl, html);
                         }
-                        const html = await resp.text();
-                        await savePageHtmlLocal(pageUrl, html);
-                    }
-                } catch (ignored) {}
-            }
+                    } catch (ignored) {}
+                })
+            );
         } finally {
             isWarmingPages = false;
         }
@@ -947,13 +944,78 @@
         await navigateOfflineTo('/batches/offline-print', true);
     }
 
+    async function buildSynthesizedFallbackHtml(targetPath) {
+        const snapshot = (await getSnapshotLocal()) || { products: [], settings: {} };
+        const productsOptions = (snapshot.products || [])
+            .map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`)
+            .join('');
+
+        if (targetPath === '/batches/create') {
+            const container = document.querySelector('.container-fluid.mt-3');
+            if (container) {
+                const cloneDoc = document.documentElement.cloneNode(true);
+                const mainDiv = cloneDoc.querySelector('.container-fluid.mt-3');
+                if (mainDiv) {
+                    const tomorrow = addDays(formatIsoDate(new Date()), 1);
+                    mainDiv.innerHTML = `
+                        <div class="row justify-content-center">
+                            <div class="col-12 col-md-8 col-lg-6">
+                                <div class="d-flex align-items-center mb-4">
+                                    <a href="/dashboard" class="btn btn-outline-secondary btn-sm me-3 border-0"><i class="bi bi-arrow-left fs-5"></i></a>
+                                    <h3 class="mb-0 text-dark">Create Harvest Batch</h3>
+                                </div>
+                                <div class="card shadow-lg border-0">
+                                    <div class="card-body p-4">
+                                        <form action="/batches/save" method="post">
+                                            <h6 class="text-uppercase text-muted fw-bold small mb-4">Batch Information</h6>
+                                            <div class="mb-3">
+                                                <label class="form-label">Product</label>
+                                                <select class="form-select searchable" id="product" name="productId" required placeholder="Select Product...">
+                                                    <option value="">Choose product...</option>
+                                                    ${productsOptions}
+                                                </select>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label text-muted small">Quantity (Units/Boxes)</label>
+                                                <div class="input-group">
+                                                    <span class="input-group-text bg-transparent border-end-0 text-muted"><i class="bi bi-boxes"></i></span>
+                                                    <input type="number" class="form-control form-control-lg border-start-0 ps-0" name="quantity" min="1" max="5000" value="100" required>
+                                                </div>
+                                            </div>
+                                            <div class="mb-4">
+                                                <label class="form-label text-muted small">Harvest Date</label>
+                                                <input type="date" class="form-control" name="batchDate" max="${tomorrow}">
+                                                <div class="form-text text-muted opacity-50">Leave empty to use today's date.</div>
+                                            </div>
+                                            <div class="d-grid gap-2 mt-5">
+                                                <button type="submit" class="btn btn-success btn-lg shadow-sm">
+                                                    <i class="bi bi-upc-scan me-2"></i>Generate Batch &amp; IDs
+                                                </button>
+                                                <a href="/dashboard" class="btn btn-link text-muted text-decoration-none">Cancel</a>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    return '<!DOCTYPE html>\n' + cloneDoc.outerHTML;
+                }
+            }
+        }
+        return null;
+    }
+
     async function navigateOfflineTo(rawUrl, pushHistory) {
         if (navigator.onLine) {
             window.location.href = rawUrl;
             return;
         }
         const targetPath = normalizeOfflinePath(rawUrl);
-        const html = await getPageHtmlLocal(targetPath);
+        let html = await getPageHtmlLocal(targetPath);
+        if (!html) {
+            html = await buildSynthesizedFallbackHtml(targetPath);
+        }
         if (!html) {
             showSyncBanner('This page has not been cached yet. Reconnect once to cache all offline pages.');
             return;
@@ -967,6 +1029,15 @@
 
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
+
+        // Clean any pre-existing Select2 wrappers inside parsed HTML so Select2 can initialize cleanly
+        doc.body.querySelectorAll('.select2-container').forEach((el) => el.remove());
+        doc.body.querySelectorAll('select.select2-hidden-accessible').forEach((sel) => {
+            sel.classList.remove('select2-hidden-accessible');
+            sel.removeAttribute('data-select2-id');
+            sel.removeAttribute('aria-hidden');
+            sel.removeAttribute('tabindex');
+        });
 
         if (doc.title) {
             document.title = doc.title;
@@ -997,14 +1068,43 @@
             } catch (ignored) {}
         }
 
-        // Execute inline scripts from the target page (excluding external scripts already loaded)
-        doc.body.querySelectorAll('script:not([src])').forEach((scr) => {
-            try {
-                const newScr = document.createElement('script');
-                newScr.textContent = scr.textContent;
-                document.body.appendChild(newScr);
-            } catch (ignored) {}
-        });
+        // Ensure product dropdowns have options from cached snapshot if needed
+        const snapshot = await getSnapshotLocal();
+        if (snapshot && Array.isArray(snapshot.products) && snapshot.products.length > 0) {
+            document.querySelectorAll('select[name="productId"]').forEach((sel) => {
+                if (sel.options.length <= 1) {
+                    snapshot.products.forEach((p) => {
+                        const opt = document.createElement('option');
+                        opt.value = String(p.id);
+                        opt.textContent = p.name;
+                        sel.appendChild(opt);
+                    });
+                }
+            });
+        }
+
+        // Execute inline scripts from the target page (shimming DOMContentLoaded so handlers fire immediately)
+        const origAddEventListener = document.addEventListener.bind(document);
+        document.addEventListener = function (type, listener, options) {
+            if (type === 'DOMContentLoaded' && typeof listener === 'function') {
+                try {
+                    listener(new Event('DOMContentLoaded'));
+                } catch (ignored) {}
+                return;
+            }
+            return origAddEventListener(type, listener, options);
+        };
+        try {
+            doc.body.querySelectorAll('script:not([src])').forEach((scr) => {
+                try {
+                    const newScr = document.createElement('script');
+                    newScr.textContent = scr.textContent;
+                    document.body.appendChild(newScr);
+                } catch (ignored) {}
+            });
+        } finally {
+            document.addEventListener = origAddEventListener;
+        }
 
         await initPageOfflineFeatures();
         if (targetPath === '/batches/offline-print' && typeof window.renderOfflinePrintJob === 'function') {
