@@ -7,23 +7,41 @@
     'use strict';
 
     const DB_NAME = 'mo_stock_keeper_offline_v1';
-    const DB_VERSION = 1;
+    const DB_VERSION = 2;
+    const SW_CACHE_NAME = 'mo-stock-pwa-v4';
     const SNAPSHOT_KEY = 'mo_stock_offline_snapshot_v1';
     const OUTBOX_KEY = 'mo_stock_offline_outbox_v1';
     const PRINT_JOB_KEY = 'mo_stock_latest_offline_print_job';
+    const PAGE_CACHE_PREFIX = 'mo_stock_page_html_';
+    const OFFLINE_APP_PAGES = [
+        '/dashboard',
+        '/batches',
+        '/batches/create',
+        '/batches/manual-labels',
+        '/batches/offline-print',
+        '/procurement',
+        '/admin/settings'
+    ];
 
     let dbInstance = null;
     let isSyncing = false;
+    let isWarmingPages = false;
     let activeModalBatchCode = null;
 
-    // 1. Register Service Worker
+    // 1. Register Service Worker immediately (do not wait for window.load)
     if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function () {
-            navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function () {});
-        });
+        navigator.serviceWorker
+            .register('/sw.js', { scope: '/' })
+            .then(function (reg) {
+                const targetSw = reg.active || reg.waiting || reg.installing;
+                if (targetSw && navigator.onLine) {
+                    targetSw.postMessage({ type: 'WARM_CACHE' });
+                }
+            })
+            .catch(function () {});
     }
 
-    // 2. IndexedDB + localStorage Dual-Layer Storage
+    // 2. IndexedDB + localStorage Dual-Layer Storage (Snapshots, Outbox & HTML Pages)
     function openDatabase() {
         return new Promise((resolve) => {
             if (dbInstance) {
@@ -44,6 +62,9 @@
                     if (!db.objectStoreNames.contains('outbox')) {
                         db.createObjectStore('outbox', { keyPath: 'clientMutationId' });
                     }
+                    if (!db.objectStoreNames.contains('pages')) {
+                        db.createObjectStore('pages');
+                    }
                 };
                 req.onsuccess = function (e) {
                     dbInstance = e.target.result;
@@ -56,6 +77,107 @@
                 resolve(null);
             }
         });
+    }
+
+    function normalizeOfflinePath(rawPath) {
+        if (!rawPath) return '/dashboard';
+        const clean = rawPath.split('?')[0].split('#')[0] || '/';
+        if (clean === '/') return '/dashboard';
+        if (/^\/batches\/\d+$/.test(clean)) return '/batches';
+        return clean;
+    }
+
+    async function savePageHtmlLocal(path, html) {
+        if (!path || !html || html.includes('action="/login"') || html.includes('name="username"')) {
+            return;
+        }
+        const norm = normalizeOfflinePath(path);
+        try {
+            sessionStorage.setItem(PAGE_CACHE_PREFIX + norm, html);
+        } catch (ignored) {}
+        try {
+            localStorage.setItem(PAGE_CACHE_PREFIX + norm, html);
+        } catch (ignored) {}
+        const db = await openDatabase();
+        if (db && db.objectStoreNames.contains('pages')) {
+            try {
+                const tx = db.transaction('pages', 'readwrite');
+                tx.objectStore('pages').put(html, norm);
+            } catch (ignored) {}
+        }
+    }
+
+    async function getPageHtmlLocal(path) {
+        const norm = normalizeOfflinePath(path);
+        try {
+            const fromSession = sessionStorage.getItem(PAGE_CACHE_PREFIX + norm);
+            if (fromSession) return fromSession;
+        } catch (ignored) {}
+        try {
+            const fromLocal = localStorage.getItem(PAGE_CACHE_PREFIX + norm);
+            if (fromLocal) return fromLocal;
+        } catch (ignored) {}
+        const db = await openDatabase();
+        if (db && db.objectStoreNames.contains('pages')) {
+            const fromIdb = await new Promise((resolve) => {
+                try {
+                    const tx = db.transaction('pages', 'readonly');
+                    const req = tx.objectStore('pages').get(norm);
+                    req.onsuccess = () => resolve(req.result || null);
+                    req.onerror = () => resolve(null);
+                } catch (err) {
+                    resolve(null);
+                }
+            });
+            if (fromIdb) return fromIdb;
+        }
+        if (window.caches) {
+            try {
+                const cache = await window.caches.open(SW_CACHE_NAME);
+                const resp = await cache.match(norm, { ignoreSearch: true, ignoreVary: true });
+                if (resp && resp.ok) {
+                    return await resp.text();
+                }
+            } catch (ignored) {}
+        }
+        return null;
+    }
+
+    async function warmAllOfflineCaches() {
+        if (!navigator.onLine || isWarmingPages || window.location.pathname.startsWith('/login')) {
+            return;
+        }
+        isWarmingPages = true;
+        try {
+            // Save current live DOM page first
+            if (document.documentElement && document.documentElement.outerHTML) {
+                await savePageHtmlLocal(window.location.pathname, '<!DOCTYPE html>\n' + document.documentElement.outerHTML);
+            }
+
+            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                navigator.serviceWorker.controller.postMessage({ type: 'WARM_CACHE' });
+            }
+
+            const swCache = window.caches ? await window.caches.open(SW_CACHE_NAME).catch(() => null) : null;
+
+            for (const pageUrl of OFFLINE_APP_PAGES) {
+                try {
+                    const resp = await fetch(pageUrl, { credentials: 'same-origin', cache: 'no-cache' });
+                    if (resp && resp.status === 200 && !resp.redirected && !(resp.url || '').includes('/login')) {
+                        if (swCache) {
+                            await swCache.put(pageUrl, resp.clone()).catch(() => {});
+                            if (pageUrl === '/dashboard') {
+                                await swCache.put('/', resp.clone()).catch(() => {});
+                            }
+                        }
+                        const html = await resp.text();
+                        await savePageHtmlLocal(pageUrl, html);
+                    }
+                } catch (ignored) {}
+            }
+        } finally {
+            isWarmingPages = false;
+        }
     }
 
     async function saveSnapshotLocal(snapshot) {
@@ -792,11 +914,16 @@
             backUrl: '/batches'
         };
         localStorage.setItem(PRINT_JOB_KEY, JSON.stringify(printJob));
-        window.location.href = '/batches/offline-print';
+        await openOfflinePrintSheet();
     }
 
     function printActiveOfflineBatchAll() {
         if (!activeModalBatchCode) return;
+        const modalEl = document.getElementById('offlineBatchManageModal');
+        if (modalEl && window.bootstrap) {
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+        }
         printOfflineBatchUnits(activeModalBatchCode, 1, 5000);
     }
 
@@ -804,7 +931,86 @@
         if (!activeModalBatchCode) return;
         const start = Number(document.getElementById('obmRangeStart').value || 1);
         const end = Number(document.getElementById('obmRangeEnd').value || start);
+        const modalEl = document.getElementById('offlineBatchManageModal');
+        if (modalEl && window.bootstrap) {
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+        }
         printOfflineBatchUnits(activeModalBatchCode, start, end);
+    }
+
+    async function openOfflinePrintSheet() {
+        if (navigator.onLine) {
+            window.location.href = '/batches/offline-print';
+            return;
+        }
+        await navigateOfflineTo('/batches/offline-print', true);
+    }
+
+    async function navigateOfflineTo(rawUrl, pushHistory) {
+        if (navigator.onLine) {
+            window.location.href = rawUrl;
+            return;
+        }
+        const targetPath = normalizeOfflinePath(rawUrl);
+        const html = await getPageHtmlLocal(targetPath);
+        if (!html) {
+            showSyncBanner('This page has not been cached yet. Reconnect once to cache all offline pages.');
+            return;
+        }
+
+        // Hide any open Bootstrap modal backdrop before swapping DOM
+        document.querySelectorAll('.modal-backdrop').forEach((el) => el.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+
+        if (doc.title) {
+            document.title = doc.title;
+        }
+
+        // Copy page-specific inline <style> blocks from parsed <head>
+        document.head.querySelectorAll('style[data-offline-injected="true"]').forEach((s) => s.remove());
+        doc.head.querySelectorAll('style').forEach((styleEl) => {
+            const clonedStyle = document.createElement('style');
+            clonedStyle.setAttribute('data-offline-injected', 'true');
+            if (styleEl.id) clonedStyle.id = styleEl.id;
+            clonedStyle.textContent = styleEl.textContent;
+            document.head.appendChild(clonedStyle);
+        });
+
+        // Swap body attributes & innerHTML
+        document.body.className = doc.body.className || '';
+        if (doc.body.id) {
+            document.body.id = doc.body.id;
+        } else {
+            document.body.removeAttribute('id');
+        }
+        document.body.innerHTML = doc.body.innerHTML;
+
+        if (pushHistory !== false) {
+            try {
+                window.history.pushState({ offlinePath: targetPath }, '', targetPath);
+            } catch (ignored) {}
+        }
+
+        // Execute inline scripts from the target page (excluding external scripts already loaded)
+        doc.body.querySelectorAll('script:not([src])').forEach((scr) => {
+            try {
+                const newScr = document.createElement('script');
+                newScr.textContent = scr.textContent;
+                document.body.appendChild(newScr);
+            } catch (ignored) {}
+        });
+
+        await initPageOfflineFeatures();
+        if (targetPath === '/batches/offline-print' && typeof window.renderOfflinePrintJob === 'function') {
+            window.renderOfflinePrintJob();
+        }
+        window.scrollTo(0, 0);
     }
 
     // 9. Form Interceptors for Create Batch, Detail Page Actions, Manual Labels, ARPS & Settings
@@ -875,7 +1081,7 @@
                     backUrl: '/batches'
                 };
                 localStorage.setItem(PRINT_JOB_KEY, JSON.stringify(printJob));
-                window.location.href = '/batches/offline-print';
+                await openOfflinePrintSheet();
             });
         }
 
@@ -916,7 +1122,7 @@
                     batchId: String(batchId),
                     batchCode: batchCode
                 });
-                window.location.href = '/batches';
+                await navigateOfflineTo('/batches', true);
             });
         }
 
@@ -984,7 +1190,7 @@
                     backUrl: '/batches/manual-labels'
                 };
                 localStorage.setItem(PRINT_JOB_KEY, JSON.stringify(printJob));
-                window.location.href = '/batches/offline-print';
+                await openOfflinePrintSheet();
             });
         }
 
@@ -1022,7 +1228,7 @@
                     backUrl: '/batches/manual-labels'
                 };
                 localStorage.setItem(PRINT_JOB_KEY, JSON.stringify(printJob));
-                window.location.href = '/batches/offline-print';
+                await openOfflinePrintSheet();
             });
         }
 
@@ -1169,11 +1375,60 @@
         }
     }
 
+    async function initPageOfflineFeatures() {
+        updateNavbarStatus();
+        bindOfflineFormInterceptors();
+        await renderPendingBatchesOnListPage();
+    }
+
+    // Intercept offline link navigations & F5/Ctrl+R refreshes so offline navigation works even on plain HTTP LAN servers
+    document.addEventListener('click', function (e) {
+        if (navigator.onLine || e.defaultPrevented) return;
+        const anchor = e.target.closest('a[href]');
+        if (!anchor) return;
+        const href = anchor.getAttribute('href') || '';
+        if (
+            !href ||
+            href.startsWith('#') ||
+            href.startsWith('javascript:') ||
+            anchor.hasAttribute('data-bs-toggle') ||
+            anchor.classList.contains('batch-card-link')
+        ) {
+            return;
+        }
+        try {
+            const url = new URL(href, window.location.origin);
+            if (url.origin !== window.location.origin) return;
+            const norm = normalizeOfflinePath(url.pathname);
+            if (OFFLINE_APP_PAGES.includes(norm)) {
+                e.preventDefault();
+                navigateOfflineTo(norm, true);
+            }
+        } catch (ignored) {}
+    });
+
+    window.addEventListener('keydown', function (e) {
+        if (navigator.onLine) return;
+        const isF5 = e.key === 'F5';
+        const isCtrlR = (e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R');
+        if (isF5 || isCtrlR) {
+            e.preventDefault();
+            navigateOfflineTo(window.location.pathname, false);
+        }
+    });
+
+    window.addEventListener('popstate', function () {
+        if (!navigator.onLine) {
+            navigateOfflineTo(window.location.pathname, false);
+        }
+    });
+
     // 10. Public API & Lifecycle Initialization
     window.MoStockOfflineSync = {
         syncNow: syncPendingOutbox,
         refreshSnapshot: refreshSnapshotFromServer,
         getOutbox: getOutboxLocal,
+        navigateOfflineTo: navigateOfflineTo,
         openOfflineBatchModal: openOfflineBatchModal,
         toggleOfflineBatchEdit: toggleOfflineBatchEdit,
         toggleOfflinePrintRange: toggleOfflinePrintRange,
@@ -1188,6 +1443,7 @@
     window.addEventListener('online', function () {
         updateNavbarStatus();
         syncPendingOutbox();
+        warmAllOfflineCaches();
     });
 
     window.addEventListener('offline', function () {
@@ -1196,14 +1452,13 @@
     });
 
     document.addEventListener('DOMContentLoaded', async function () {
-        updateNavbarStatus();
-        bindOfflineFormInterceptors();
-        await renderPendingBatchesOnListPage();
+        await initPageOfflineFeatures();
 
         if (navigator.onLine) {
             await syncPendingOutbox();
             await refreshSnapshotFromServer();
             await renderPendingBatchesOnListPage();
+            warmAllOfflineCaches();
         }
     });
 })();

@@ -317,8 +317,11 @@
             setTimeout(autoFitLabels, 50);
         }
 
+        window.renderOfflinePrintJob = renderOfflinePrintJob;
+        window.autoFitOfflineLabels = autoFitLabels;
         document.addEventListener('DOMContentLoaded', renderOfflinePrintJob);
         window.addEventListener('load', autoFitLabels);
     </script>
+    <script th:src="@{/js/offline-sync.js}"></script>
 </body>
 </html>
