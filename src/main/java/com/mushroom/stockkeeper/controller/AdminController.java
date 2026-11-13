@@ -2,7 +2,9 @@ package com.mushroom.stockkeeper.controller;
 
 import com.mushroom.stockkeeper.model.AppSetting;
 import com.mushroom.stockkeeper.repository.AppSettingRepository;
+import com.mushroom.stockkeeper.service.ProcurementSchedulerService;
 import com.mushroom.stockkeeper.service.SettingsService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -23,10 +25,16 @@ public class AdminController {
 
     private final AppSettingRepository settingRepository;
     private final SettingsService settingsService;
+    private ProcurementSchedulerService procurementSchedulerService;
 
     public AdminController(AppSettingRepository settingRepository, SettingsService settingsService) {
         this.settingRepository = settingRepository;
         this.settingsService = settingsService;
+    }
+
+    @Autowired(required = false)
+    public void setProcurementSchedulerService(ProcurementSchedulerService procurementSchedulerService) {
+        this.procurementSchedulerService = procurementSchedulerService;
     }
 
     @GetMapping("/settings")
@@ -36,6 +44,7 @@ public class AdminController {
                 .collect(Collectors.toMap(AppSetting::getSettingKey, AppSetting::getSettingValue, (a, b) -> b)));
 
         settings.putIfAbsent(SettingsService.KEY_PRINT_SERVER_URL, settingsService.getPrintServerUrl());
+        settings.putIfAbsent(SettingsService.KEY_PROCUREMENT_BLACKOUT_DATES, settingsService.getProcurementBlackoutDatesRaw());
 
         model.addAttribute("settings", settings);
         return "admin/settings";
@@ -60,6 +69,10 @@ public class AdminController {
             AppSetting setting = settingRepository.findBySettingKey(key).orElse(new AppSetting(key, ""));
             setting.setSettingValue(val != null ? val : "");
             settingRepository.save(setting);
+        }
+
+        if (procurementSchedulerService != null && allParams.containsKey(SettingsService.KEY_PROCUREMENT_BLACKOUT_DATES)) {
+            procurementSchedulerService.recalculateAllActiveSchedules();
         }
 
         redirectAttributes.addFlashAttribute("success", "Settings updated successfully.");

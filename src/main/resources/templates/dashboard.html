@@ -100,6 +100,29 @@
                     </div>
                 </a>
             </div>
+
+            <!-- Procurement Scheduler (ARPS) Card -->
+            <div class="col-6 col-md-3">
+                <a th:href="@{/procurement}" class="text-decoration-none">
+                    <div class="card h-100 text-center p-4 shadow-sm hover-shadow position-relative">
+                        <div class="card-body">
+                            <div class="rounded-circle bg-dark text-white p-3 d-inline-block mb-3">
+                                <i class="bi bi-calendar2-range fs-2"></i>
+                            </div>
+                            <h6 class="text-dark mb-0">Procurement Scheduler</h6>
+                            <small class="text-muted d-block">12-month rolling ARPS calendar</small>
+                            <div class="mt-2" th:if="${procurementOverdueCount != null or procurementUpcomingCount != null}">
+                                <span th:if="${procurementOverdueCount != null and procurementOverdueCount > 0}"
+                                      class="badge bg-danger me-1"
+                                      th:text="${procurementOverdueCount} + ' Overdue'">0 Overdue</span>
+                                <span th:if="${procurementUpcomingCount != null and procurementUpcomingCount > 0}"
+                                      class="badge bg-warning text-dark"
+                                      th:text="${procurementUpcomingCount} + ' Upcoming'">0 Upcoming</span>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </div>
             
         </div>
     </div>

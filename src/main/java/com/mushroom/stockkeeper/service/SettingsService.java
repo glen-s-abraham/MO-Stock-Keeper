@@ -7,7 +7,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+import java.util.LinkedHashSet;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class SettingsService {
@@ -33,6 +37,7 @@ public class SettingsService {
     public static final String KEY_CUSTOM_LABEL_WIDTH = "custom_label_width";
     public static final String KEY_CUSTOM_LABEL_HEIGHT = "custom_label_height";
     public static final String KEY_MANUAL_LABEL_LAST_SEQUENCE = "manual_label_last_sequence";
+    public static final String KEY_PROCUREMENT_BLACKOUT_DATES = "procurement_blackout_dates";
     public static final int MAX_MANUAL_LABELS_PER_RUN = 500;
 
     public SettingsService(AppSettingRepository appSettingRepository) {
@@ -164,6 +169,40 @@ public class SettingsService {
         int endSeq = lastSeq + quantity;
         updateSetting(KEY_MANUAL_LABEL_LAST_SEQUENCE, String.valueOf(endSeq));
         return new ManualLabelRange(startSeq, endSeq);
+    }
+
+    public String getProcurementBlackoutDatesRaw() {
+        return appSettingRepository.findBySettingKey(KEY_PROCUREMENT_BLACKOUT_DATES)
+                .map(AppSetting::getSettingValue)
+                .orElse("");
+    }
+
+    public Set<LocalDate> getProcurementBlackoutDates() {
+        String raw = getProcurementBlackoutDatesRaw();
+        Set<LocalDate> result = new LinkedHashSet<>();
+        if (raw == null || raw.isBlank()) {
+            return result;
+        }
+        String[] tokens = raw.split("[,;\\r\\n]+");
+        for (String token : tokens) {
+            String trimmed = token.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            // Allow optional label after '|' or ':' (e.g., "2026-12-25|Christmas" or "2026-12-25")
+            String datePart = trimmed.split("[|:]")[0].trim();
+            try {
+                result.add(LocalDate.parse(datePart));
+            } catch (DateTimeParseException ignored) {
+                // Ignore malformed tokens so a typo doesn't break schedule calculation
+            }
+        }
+        return result;
+    }
+
+    @Transactional
+    public void setProcurementBlackoutDates(String blackoutDatesRaw) {
+        updateSetting(KEY_PROCUREMENT_BLACKOUT_DATES, blackoutDatesRaw != null ? blackoutDatesRaw.trim() : "");
     }
 
     // Generic helper used internally or by other services if needed

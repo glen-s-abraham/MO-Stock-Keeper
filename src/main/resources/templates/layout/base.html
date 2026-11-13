@@ -54,31 +54,108 @@
 <body class="pb-5 mb-5"> <!-- Padding for bottom nav -->
 
     <!-- Top Navbar (Desktop/Admin mainly) -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-success sticky-top">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-success sticky-top shadow-sm">
         <div class="container-fluid">
-            <a class="navbar-brand" href="/">
+            <a class="navbar-brand fw-bold d-flex align-items-center" th:href="@{/dashboard}">
                 <i class="bi bi-box-seam-fill me-2"></i>MO Stock
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain"
+                    aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarMain">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    <li class="nav-item"><a class="nav-link" href="#" th:href="@{/dashboard}">Dashboard</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#" th:href="@{/dashboard/harvest}">Harvest Dashboard</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#" th:href="@{/products}">Products</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#" th:href="@{/batches}">Batches</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#" th:href="@{/batches/manual-labels}">Manual Labels</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#" th:href="@{/sales}">Sales</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#" th:href="@{/invoices}">Invoices</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#" th:href="@{/customers}">Customers</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#" th:href="@{/returns}">Returns</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#" th:href="@{/collections}">Collections</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#" th:href="@{/admin/settings}">Settings</a></li>
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0 gap-lg-1">
+                    <!-- 1. Home -->
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/dashboard}">
+                            <i class="bi bi-house-door me-1"></i>Home
+                        </a>
+                    </li>
+
+                    <!-- 2. Production & Inventory Dropdown -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navProductionDropdown" role="button"
+                           data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-box-seam me-1"></i>Production &amp; Stock
+                        </a>
+                        <ul class="dropdown-menu shadow-sm" aria-labelledby="navProductionDropdown">
+                            <li>
+                                <a class="dropdown-item" th:href="@{/batches}">
+                                    <i class="bi bi-boxes me-2 text-success"></i>Harvest Batches
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" th:href="@{/batches/manual-labels}">
+                                    <i class="bi bi-printer me-2 text-primary"></i>Manual Labels
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" th:href="@{/products}">
+                                    <i class="bi bi-tags me-2 text-info"></i>Products
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" th:href="@{/dashboard/harvest}">
+                                    <i class="bi bi-graph-up-arrow me-2 text-success"></i>Harvest Dashboard
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+
+                    <!-- 3. Procurement Scheduler Tab (ARPS) -->
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/procurement}">
+                            <i class="bi bi-calendar2-range me-1"></i>Procurement
+                        </a>
+                    </li>
+
+                    <!-- 4. Sales & Billing Dropdown -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navSalesDropdown" role="button"
+                           data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-cart3 me-1"></i>Sales &amp; Billing
+                        </a>
+                        <ul class="dropdown-menu shadow-sm" aria-labelledby="navSalesDropdown">
+                            <li>
+                                <a class="dropdown-item" th:href="@{/sales}">
+                                    <i class="bi bi-bag-check me-2 text-primary"></i>Sales Orders
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" th:href="@{/invoices}">
+                                    <i class="bi bi-receipt me-2 text-secondary"></i>Invoices
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" th:href="@{/collections}">
+                                    <i class="bi bi-cash-coin me-2 text-warning"></i>Collections
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" th:href="@{/returns}">
+                                    <i class="bi bi-arrow-return-left me-2 text-danger"></i>Returns
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" th:href="@{/customers}">
+                                    <i class="bi bi-people me-2 text-info"></i>Customers
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+
+                    <!-- 5. Settings -->
+                    <li class="nav-item">
+                        <a class="nav-link" th:href="@{/admin/settings}">
+                            <i class="bi bi-gear me-1"></i>Settings
+                        </a>
+                    </li>
                 </ul>
-                <div class="d-flex">
-                    <span class="text-white me-3" th:if="${#authentication.principal != 'anonymousUser'}">
-                        <i class="bi bi-person-circle"></i> <span th:text="${#authentication.name}">User</span>
+                <div class="d-flex align-items-center">
+                    <span class="text-white me-3 small" th:if="${#authentication.principal != 'anonymousUser'}">
+                        <i class="bi bi-person-circle me-1"></i><span th:text="${#authentication.name}">User</span>
                     </span>
                     <form th:action="@{/logout}" method="post" th:if="${#authentication.principal != 'anonymousUser'}">
                         <button class="btn btn-sm btn-outline-light" type="submit">Logout</button>

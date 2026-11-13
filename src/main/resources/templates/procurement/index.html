@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout/base}">
+<head>
+    <title>Adaptive Rolling Procurement Scheduler (ARPS)</title>
+    <style>
+        .arps-node-card {
+            border-left: 5px solid #198754;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .arps-node-card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 0.35rem 0.75rem rgba(0, 0, 0, 0.12);
+        }
+        .arps-node-stockout {
+            border-left: 6px solid #fd7e14 !important;
+            background-color: #fff8f1;
+        }
+        .badge-stockout-orange {
+            background-color: #fd7e14;
+            color: #ffffff;
+        }
+        .alert-stockout-orange {
+            background-color: #fff3e6;
+            border: 1px solid #fd7e14;
+            color: #9c4100;
+        }
+        .action-badge-overdue {
+            background-color: #dc3545;
+            color: #ffffff;
+            font-weight: 600;
+        }
+        .action-badge-upcoming {
+            background-color: #ffc107;
+            color: #212529;
+            font-weight: 600;
+        }
+        .action-badge-scheduled {
+            background-color: #e9ecef;
+            color: #495057;
+            font-weight: 500;
+        }
+        .timeline-flow-step {
+            min-width: 145px;
+        }
+        .timeline-arrow {
+            font-size: 1.25rem;
+            color: #6c757d;
+        }
+        .timeline-scroll-container {
+            max-height: 75vh;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+    </style>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <!-- Toast Notification Feedback Loop -->
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;">
+        <div id="arpsFeedbackToast" class="toast align-items-center text-bg-success border-0 show"
+             role="alert" aria-live="assertive" aria-atomic="true"
+             th:if="${toastMessage != null}">
+            <div class="d-flex">
+                <div class="toast-body fw-semibold">
+                    <i class="bi bi-check-circle-fill me-2"></i>
+                    <span id="arpsToastText" th:text="${toastMessage}">Delivery shifted by 0 days. Subsequent 12 months successfully recalculated.</span>
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Client-Side Lead Time Collision Error Alert (Hidden by default) -->
+    <div id="clientLeadTimeError" class="alert alert-danger alert-dismissible fade show d-none mb-3" role="alert">
+        <i class="bi bi-Octagon-fill me-2"></i>
+        <span id="clientLeadTimeErrorText"></span>
+        <button type="button" class="btn-close" onclick="document.getElementById('clientLeadTimeError').classList.add('d-none')"></button>
+    </div>
+
+    <!-- Server-Side Error Alert -->
+    <div th:if="${error != null}" class="alert alert-danger alert-dismissible fade show mb-3" role="alert" id="serverErrorAlert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <span th:text="${error}">Error message</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+
+    <!-- Page Header & Actions -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <div>
+            <h2 class="mb-1 fw-bold">
+                <i class="bi bi-calendar2-range text-success me-2"></i>Adaptive Rolling Procurement Scheduler (ARPS)
+            </h2>
+            <p class="text-muted mb-0">
+                Dynamic 12-month forward-looking procurement calendar with cascading ripple recalculation, lead-time collision checks, and stockout risk protection.
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#blackoutDatesModal">
+                <i class="bi bi-calendar-x me-1"></i>Holiday Blackouts
+                <span class="badge bg-secondary ms-1" th:text="${blackoutDates != null ? blackoutDates.size() : 0}">0</span>
+            </button>
+            <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#newScheduleModal">
+                <i class="bi bi-plus-circle me-1"></i>New Schedule
+            </button>
+        </div>
+    </div>
+
+    <!-- 1. THE HUB VIEW: Current Month & Active Schedules Dashboard -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <div>
+                <i class="bi bi-grid-1x2-fill me-2"></i>
+                <span class="fw-bold">The Hub View — Active Procurement Schedules</span>
+            </div>
+            <div class="d-flex align-items-center gap-2 small">
+                <span class="badge action-badge-upcoming"><i class="bi bi-clock me-1"></i>Yellow = Upcoming Action</span>
+                <span class="badge action-badge-overdue"><i class="bi bi-exclamation-circle me-1"></i>Red = Overdue Action</span>
+                <span class="badge badge-stockout-orange"><i class="bi bi-exclamation-triangle me-1"></i>Orange = Stockout Risk</span>
+            </div>
+        </div>
+        <div class="card-body">
+            <div th:if="${#lists.isEmpty(hubItems)}" class="text-center py-4 text-muted">
+                <i class="bi bi-calendar-plus display-6 d-block mb-2"></i>
+                <p class="mb-2">No active procurement schedules configured yet.</p>
+                <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#newScheduleModal">
+                    Create Your First Procurement Schedule
+                </button>
+            </div>
+
+            <div th:if="${!#lists.isEmpty(hubItems)}" class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Schedule Name</th>
+                        <th>Parameters</th>
+                        <th>Preferred Logistics Day</th>
+                        <th>Next Action Date (Internal Alert)</th>
+                        <th>Vendor Cutoff Date</th>
+                        <th>Next Delivery Date</th>
+                        <th>Redline Status</th>
+                        <th class="text-end">Timeline</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="item : ${hubItems}"
+                        th:classappend="${selectedSchedule != null and selectedSchedule.id == item.schedule.id} ? 'table-active' : ''">
+                        <td class="fw-bold">
+                            <a th:href="@{/procurement(scheduleId=${item.schedule.id})}"
+                               class="text-decoration-none text-dark"
+                               th:text="${item.schedule.scheduleName}">Raw Substrate - 175kg</a>
+                        </td>
+                        <td class="small text-muted">
+                            Supply: <strong th:text="${item.schedule.supplyLastingDays} + 'd'">28d</strong> |
+                            Lead: <strong th:text="${item.schedule.vendorLeadTime} + 'd'">15d</strong> |
+                            Buffer: <strong th:text="${item.schedule.actionBuffer} + 'd'">3d</strong>
+                        </td>
+                        <td>
+                            <span class="badge bg-info text-dark"
+                                  th:text="${item.schedule.preferredDeliveryDayName} + ' (' + ${item.schedule.preferredDeliveryDay} + ')'">
+                                Saturday (6)
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge px-3 py-2"
+                                  th:classappend="${item.actionAlertStatus == 'OVERDUE'} ? 'action-badge-overdue' : (${item.actionAlertStatus == 'UPCOMING'} ? 'action-badge-upcoming' : 'action-badge-scheduled')">
+                                <i class="bi me-1"
+                                   th:classappend="${item.actionAlertStatus == 'OVERDUE'} ? 'bi-exclamation-octagon-fill' : 'bi-bell-fill'"></i>
+                                <span th:text="${item.currentCycleNode.actionDate}">2026-11-10</span>
+                                <span class="ms-1 small"
+                                      th:text="${item.actionAlertStatus == 'OVERDUE'} ? '(Overdue)' : (${item.actionAlertStatus == 'UPCOMING'} ? '(Upcoming)' : '(Scheduled)')"></span>
+                            </span>
+                        </td>
+                        <td>
+                            <span class="fw-semibold" th:text="${item.currentCycleNode.orderCutoffDate}">2026-11-13</span>
+                        </td>
+                        <td>
+                            <span class="fw-bold text-success" th:text="${item.currentCycleNode.actualDeliveryDate}">2026-11-28</span>
+                        </td>
+                        <td>
+                            <span th:if="${item.stockoutRiskCount > 0}" class="badge badge-stockout-orange">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                <span th:text="${item.stockoutRiskCount} + ' Stockout Risk(s)'">1 Stockout Risk</span>
+                            </span>
+                            <span th:if="${item.stockoutRiskCount == 0}" class="badge bg-success-subtle text-success border border-success-subtle">
+                                <i class="bi bi-shield-check me-1"></i>Protected
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            <div class="d-inline-flex gap-1">
+                                <a th:href="@{/procurement(scheduleId=${item.schedule.id})}"
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-diagram-3 me-1"></i>View 12M
+                                </a>
+                                <form th:action="@{/procurement/schedules/{id}/delete(id=${item.schedule.id})}"
+                                      method="post" class="d-inline"
+                                      onsubmit="return confirm('Archive this schedule from the active Hub View?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Archive Schedule">
+                                        <i class="bi bi-archive"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. THE TIMELINE VIEW: 12-Month Cascading Schedule for Selected Item -->
+    <div th:if="${selectedSchedule != null}" class="card shadow-sm">
+        <div class="card-header bg-success text-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div>
+                <h5 class="mb-0 fw-bold">
+                    <i class="bi bi-calendar3-week me-2"></i>12-Month Rolling Timeline:
+                    <span th:text="${selectedSchedule.scheduleName}">Raw Substrate - 175kg</span>
+                </h5>
+                <small class="text-white-50">
+                    Cascading Loop (n=1 to 12) | Supply Lasts:
+                    <strong class="text-white" th:text="${selectedSchedule.supplyLastingDays} + ' days'">28 days</strong> |
+                    Vendor Lead Time:
+                    <strong class="text-white" th:text="${selectedSchedule.vendorLeadTime} + ' days'">15 days</strong> |
+                    Action Buffer:
+                    <strong class="text-white" th:text="${selectedSchedule.actionBuffer} + ' days'">3 days</strong> |
+                    Preferred Delivery Day:
+                    <strong class="text-white" th:text="${selectedSchedule.preferredDeliveryDayName}">Saturday</strong>
+                </small>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <label for="scheduleSwitchSelect" class="small text-white mb-0">Switch Item:</label>
+                <select id="scheduleSwitchSelect" class="form-select form-select-sm w-auto"
+                        onchange="if(this.value) window.location.href='/procurement?scheduleId=' + this.value;">
+                    <option th:each="sched : ${schedules}"
+                            th:value="${sched.id}"
+                            th:selected="${sched.id == selectedSchedule.id}"
+                            th:text="${sched.scheduleName}">
+                    </option>
+                </select>
+            </div>
+        </div>
+
+        <div class="card-body timeline-scroll-container">
+            <div class="vstack gap-3">
+                <div th:each="node : ${selectedSchedule.nodes}"
+                     class="card arps-node-card shadow-sm"
+                     th:classappend="${node.stockoutRisk} ? 'arps-node-stockout' : ''">
+                    <div class="card-body py-3">
+                        <div class="row align-items-center g-3">
+
+                            <!-- Cycle Header Badge -->
+                            <div class="col-lg-2 col-md-3">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge rounded-pill fs-6"
+                                          th:classappend="${node.stockoutRisk} ? 'badge-stockout-orange' : 'bg-dark'"
+                                          th:text="'Month ' + ${node.cycleIndex}">Month 1</span>
+                                    <span th:if="${node.manualOverride}"
+                                          class="badge bg-primary"
+                                          title="Delivery date manually overridden">
+                                        <i class="bi bi-pencil-square me-1"></i>Overridden
+                                    </span>
+                                </div>
+                                <div class="small text-muted mt-1">
+                                    Need Date: <span th:text="${node.theoreticalNeedDate}">2026-11-28</span>
+                                </div>
+                                <div class="small text-muted" th:if="${node.cycleIndex > 1}">
+                                    Cycle Gap:
+                                    <strong th:classappend="${node.stockoutRisk} ? 'text-danger' : 'text-success'"
+                                            th:text="${node.gapDays} + ' days'">28 days</strong>
+                                </div>
+                            </div>
+
+                            <!-- [Action Date] -> [Cutoff Date] -> [Delivery Date] Kanban Flow -->
+                            <div class="col-lg-6 col-md-9">
+                                <div class="d-flex flex-wrap align-items-center justify-content-start gap-2">
+
+                                    <!-- Step 4: Action Date -->
+                                    <div class="p-2 rounded border timeline-flow-step"
+                                         th:classappend="${node.actionDate.isBefore(today)} ? 'border-danger bg-danger-subtle' : (!${node.actionDate.isAfter(today.plusDays(14))} ? 'border-warning bg-warning-subtle' : 'bg-light')">
+                                        <div class="text-uppercase small fw-bold text-muted" style="font-size: 0.7rem;">
+                                            1. Action Date
+                                        </div>
+                                        <div class="fw-bold fs-6" th:text="${node.actionDate}">2026-11-10</div>
+                                        <div th:if="${node.holidayAdjusted}" class="small text-primary" style="font-size: 0.72rem;">
+                                            <i class="bi bi-calendar-event me-1"></i>Shifted -<span th:text="${node.holidayAdjustedDays}">1</span>d (Holiday)
+                                        </div>
+                                    </div>
+
+                                    <i class="bi bi-arrow-right timeline-arrow"></i>
+
+                                    <!-- Step 3: Cutoff Date -->
+                                    <div class="p-2 rounded border bg-light timeline-flow-step">
+                                        <div class="text-uppercase small fw-bold text-muted" style="font-size: 0.7rem;">
+                                            2. Cutoff Date
+                                        </div>
+                                        <div class="fw-bold fs-6 text-secondary" th:text="${node.orderCutoffDate}">2026-11-13</div>
+                                        <div class="small text-muted" style="font-size: 0.72rem;"
+                                             th:text="'-' + ${selectedSchedule.vendorLeadTime} + 'd lead time'">-15d lead time</div>
+                                    </div>
+
+                                    <i class="bi bi-arrow-right timeline-arrow"></i>
+
+                                    <!-- Step 2: Delivery Date -->
+                                    <div class="p-2 rounded border timeline-flow-step"
+                                         th:classappend="${node.stockoutRisk} ? 'border-warning bg-warning-subtle' : 'border-success bg-success-subtle'">
+                                        <div class="text-uppercase small fw-bold text-muted" style="font-size: 0.7rem;">
+                                            3. Delivery Date
+                                        </div>
+                                        <div class="fw-bold fs-6 text-success" th:text="${node.actualDeliveryDate}">2026-11-28</div>
+                                        <div class="small text-muted" style="font-size: 0.72rem;"
+                                             th:text="${node.actualDeliveryDate.dayOfWeek}">SATURDAY</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- The Edit Override Calendar Picker -->
+                            <div class="col-lg-4 col-md-12">
+                                <form th:action="@{/procurement/schedules/{id}/override(id=${selectedSchedule.id})}"
+                                      method="post"
+                                      class="d-flex flex-wrap align-items-center justify-content-lg-end gap-2 override-delivery-form"
+                                      th:attr="data-cycle-index=${node.cycleIndex},data-lead-time=${selectedSchedule.vendorLeadTime},data-earliest-date=${earliestDeliveryDate}">
+                                    <input type="hidden" name="cycleIndex" th:value="${node.cycleIndex}">
+                                    <div class="input-group input-group-sm" style="max-width: 280px;">
+                                        <span class="input-group-text bg-white">
+                                            <i class="bi bi-calendar-date text-primary me-1"></i>Edit Delivery Date
+                                        </span>
+                                        <input type="date"
+                                               name="newDeliveryDate"
+                                               class="form-control delivery-date-picker"
+                                               th:value="${node.actualDeliveryDate}"
+                                               required>
+                                        <button type="submit" class="btn btn-primary">
+                                            Apply
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Edge Case 1: The Stockout Gap Orange Flag & Warning -->
+                        <div th:if="${node.stockoutRisk}"
+                             class="alert alert-stockout-orange d-flex align-items-center py-2 px-3 mt-3 mb-0">
+                            <i class="bi bi-exclamation-triangle-fill fs-5 me-2"></i>
+                            <div class="fw-semibold" th:text="${node.stockoutWarningMessage}">
+                                Stockout Risk: Gap is 30 days, supply only lasts 28. Increase order volume or pull delivery forward.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Create New Procurement Schedule -->
+    <div class="modal fade" id="newScheduleModal" tabindex="-1" aria-labelledby="newScheduleModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form th:action="@{/procurement/schedules}" method="post">
+                    <div class="modal-header bg-success text-white">
+                        <h5 class="modal-title" id="newScheduleModalLabel">
+                            <i class="bi bi-plus-circle me-2"></i>Configure New Procurement Schedule
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Schedule_Name</label>
+                                <input type="text" name="scheduleName" class="form-control"
+                                       placeholder="e.g., Raw Substrate - 175kg" required maxlength="150">
+                                <div class="form-text">Identifier for the procurement schedule.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Supply_Lasting_Days</label>
+                                <input type="number" name="supplyLastingDays" class="form-control"
+                                       value="28" min="7" max="365" required>
+                                <div class="form-text">Actual calendar days the inventory will last (e.g., 28 calendar days for 22 working days).</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Vendor_Lead_Time (Days)</label>
+                                <input type="number" name="vendorLeadTime" class="form-control"
+                                       value="15" min="1" max="180" required>
+                                <div class="form-text">Minimum calendar days required by the vendor to fulfill the order.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Action_Buffer (Days)</label>
+                                <input type="number" name="actionBuffer" class="form-control"
+                                       value="3" min="0" max="60" required>
+                                <div class="form-text">Safety days added before vendor cutoff to remind you to place the order.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Preferred_Delivery_Day (0–6)</label>
+                                <select name="preferredDeliveryDay" class="form-select" required>
+                                    <option value="0">0 — Sunday</option>
+                                    <option value="1">1 — Monday</option>
+                                    <option value="2">2 — Tuesday</option>
+                                    <option value="3">3 — Wednesday</option>
+                                    <option value="4">4 — Thursday</option>
+                                    <option value="5">5 — Friday</option>
+                                    <option value="6" selected>6 — Saturday</option>
+                                </select>
+                                <div class="form-text">Strict day of the week logistics can be executed (snaps backwards to prevent stockouts).</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Initial Delivery Date (Month 1) <span class="text-muted fw-normal">(Received / Anticipated)</span></label>
+                                <input type="date" name="initialDeliveryDate" class="form-control">
+                                <div class="form-text">Date you initially received or opt to receive Month 1 goods. Months 2–12 automatically calculate from this anchor date.</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-lightning-charge me-1"></i>Generate 12-Month Schedule
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Global Holiday Blackout Dates -->
+    <div class="modal fade" id="blackoutDatesModal" tabindex="-1" aria-labelledby="blackoutDatesModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form th:action="@{/procurement/blackout-dates}" method="post">
+                    <input type="hidden" name="scheduleId" th:if="${selectedSchedule != null}" th:value="${selectedSchedule.id}">
+                    <div class="modal-header bg-dark text-white">
+                        <h5 class="modal-title" id="blackoutDatesModalLabel">
+                            <i class="bi bi-calendar-x me-2"></i>Global Holiday Blackout Dates
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="small text-muted">
+                            Configure global holiday blackout dates (e.g., Christmas, Onam). If a calculated <code>Action_Date</code> falls on a blackout date, the algorithm automatically subtracts 1–2 days so the order is placed before the holiday.
+                        </p>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Quick Add Holiday Date</label>
+                            <div class="input-group input-group-sm">
+                                <input type="date" id="quickBlackoutPicker" class="form-control">
+                                <button type="button" class="btn btn-outline-primary" onclick="appendBlackoutDate()">
+                                    <i class="bi bi-plus-lg me-1"></i>Add Date
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-semibold">Blackout_Dates (ISO YYYY-MM-DD, comma or newline separated)</label>
+                            <textarea id="blackoutDatesTextarea" name="blackoutDates" class="form-control font-monospace"
+                                      rows="4" placeholder="2026-12-25, 2026-08-26"
+                                      th:text="${blackoutDatesRaw}"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save me-1"></i>Save &amp; Recalculate Schedules
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<th:block layout:fragment="scripts">
+    <script>
+        function appendBlackoutDate() {
+            const picker = document.getElementById('quickBlackoutPicker');
+            const textarea = document.getElementById('blackoutDatesTextarea');
+            if (!picker || !picker.value || !textarea) return;
+            const current = textarea.value.trim();
+            if (!current.includes(picker.value)) {
+                textarea.value = current ? (current + ', ' + picker.value) : picker.value;
+            }
+            picker.value = '';
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            // Auto-initialize Bootstrap toast if present
+            const toastEl = document.getElementById('arpsFeedbackToast');
+            if (toastEl && window.bootstrap) {
+                const toast = new bootstrap.Toast(toastEl, { delay: 6000 });
+                toast.show();
+            }
+
+            // Client-side Lead Time Collision pre-check before submitting override form (applies to Months 2..12; Month 1 is the initial/received anchor date)
+            document.querySelectorAll('.override-delivery-form').forEach(function (form) {
+                form.addEventListener('submit', function (e) {
+                    const cycleIndex = parseInt(form.getAttribute('data-cycle-index'), 10);
+                    const leadTime = parseInt(form.getAttribute('data-lead-time'), 10);
+                    const earliestDate = form.getAttribute('data-earliest-date');
+                    const input = form.querySelector('.delivery-date-picker');
+                    if (cycleIndex > 1 && input && input.value && earliestDate && input.value < earliestDate) {
+                        e.preventDefault();
+                        const errBox = document.getElementById('clientLeadTimeError');
+                        const errText = document.getElementById('clientLeadTimeErrorText');
+                        if (errBox && errText) {
+                            errText.textContent = 'Invalid Date: Vendor requires ' + leadTime +
+                                ' days lead time. Earliest possible delivery is ' + earliestDate + '.';
+                            errBox.classList.remove('d-none');
+                            errBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                    }
+                });
+            });
+        });
+    </script>
+</th:block>
+</body>
+</html>

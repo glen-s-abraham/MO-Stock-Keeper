@@ -84,6 +84,17 @@
                         </div>
                     </div>
 
+                    <h5 class="mt-4 mb-3 border-bottom pb-2">Procurement Scheduler (ARPS) Settings</h5>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Global Holiday Blackout Dates (<code>Blackout_Dates</code>)</label>
+                            <textarea class="form-control font-monospace" name="procurement_blackout_dates" rows="2"
+                                      placeholder="2026-12-25, 2026-08-26"
+                                      th:text="${settings.get('procurement_blackout_dates')}"></textarea>
+                            <div class="form-text">Comma- or newline-separated ISO dates (YYYY-MM-DD). If a calculated Action_Date falls on a blackout date, ARPS automatically subtracts 1–2 days so orders are placed before the holiday.</div>
+                        </div>
+                    </div>
+
                     <script>
                         function toggleDimensions() {
                             const val = document.getElementById('labelSheetSize').value;
